@@ -416,7 +416,7 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 GridProperties = new GridProperties()
                 {
                     RowCount = 1 + msbt.Messages.Count,
-                    ColumnCount = 1 + langs.Count + options.TransLangNames.Count,
+                    ColumnCount = 1 + langs.Count,
                     FrozenRowCount = 1,
                     FrozenColumnCount = options.FreezeColumnCount != 1 + langs.Count ? options.FreezeColumnCount : 1
                 },
@@ -565,6 +565,158 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
     }
 
     return spreadsheet;
+}
+
+static void AddStatsToSpreadsheet(ref Spreadsheet spreadsheet)
+{
+    Sheet statsSheet = new()
+    {
+        Properties = new SheetProperties()
+        {
+            Title = "#Stats",
+            GridProperties = new GridProperties()
+            {
+                RowCount = 1 + spreadsheet.Sheets.Count,
+                ColumnCount = 4,
+                FrozenColumnCount = 1
+            }
+        },
+        Data = new List<GridData>()
+        {
+            new GridData()
+            {
+                RowData = new List<RowData>()
+            }
+        }
+    };
+
+    RowData headerRow = new()
+    {
+        Values = StringListToCellData(
+            new List<string>(){"Filename", "Done by", "Untranslated Characters", "Total Characters"},
+            new CellFormat()
+            {
+                TextFormat = new TextFormat()
+                {
+                    Bold = true
+                },
+                BackgroundColorStyle = new ColorStyle()
+                {
+                    RgbColor = new Color()
+                    {
+                        Red = 0.937f, Blue = 0.937f, Green = 0.937f, Alpha = 1
+                    } 
+                }
+            }
+        )
+    };
+
+    RowData totalRow = new()
+    {
+        Values = new List<CellData>()
+        {
+            new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = "Total:"
+                },
+                UserEnteredFormat = new CellFormat()
+                {
+                    TextFormat = new TextFormat()
+                    {
+                        Bold = true
+                    }
+                }
+            },
+            new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = "=C2/D2*100"
+                }
+            },
+            new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = "=SUM(C3:C)"
+                }
+            },
+            new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = "=SUM(D3:D)"
+                }
+            }
+        }
+    };
+
+    statsSheet.Data[0].RowData.Add(headerRow);
+
+    int sheetNum = 0;
+    foreach (var sheet in spreadsheet.Sheets)
+    {
+        if (sheet.Properties.Title.StartsWith('#'))
+        {
+            continue;
+        }
+
+        sheetNum++;
+        
+        RowData row = new()
+        {
+            Values = new List<CellData>()
+            {
+                new CellData()
+                {
+                    UserEnteredValue = new ExtendedValue()
+                    {
+                        StringValue = sheet.Properties.Title
+                    },
+                    Hyperlink = $"#gid={sheet.Properties.SheetId}"
+                },
+                new CellData()
+                {
+                    UserEnteredValue = new ExtendedValue()
+                    {
+                        StringValue = $"=C{sheetNum + 3}/D{sheetNum + 3}*100"
+                    }
+                },
+                new CellData()
+                {
+                    UserEnteredValue = new ExtendedValue()
+                    {
+                        StringValue = $"={sheet.Properties.Title}!SUMPRODUCT(LEN(B2:B))"
+                    }
+                }
+            }
+        };
+        
+        
+    }
+}
+
+static List<CellData> StringListToCellData(List<string> texts, CellFormat format = null)
+{
+    List<CellData> cellDatas = new();
+
+    foreach (var text in texts)
+    {
+        CellData cellData = new()
+        {
+            UserEnteredValue = new ExtendedValue()
+            {
+                StringValue = text
+            },
+            UserEnteredFormat = format
+        };
+        
+        cellDatas.Add(cellData);
+    }
+
+    return cellDatas;
 }
 
 static List<TextFormatRun> HighlightRuns(string message)
