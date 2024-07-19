@@ -20,10 +20,15 @@ public class Tag
         IsTagEnd = isTagEnd;
     }
 
-    public string Stringify(ParsingOptions options, MSBP? msbp = null)
+    public string Stringify(ParsingOptions options, string tagOrigin, MSBP? msbp = null, bool isBaseMsbp = false)
     {
         if (msbp == null)
         {
+            if (Group == 0)
+            {
+                return Stringify(options, tagOrigin, MSBP.BaseMSBP, true);
+            }
+            
             if (IsTagEnd)
             {
                 return $"</{Group}.{Type}>";
@@ -44,14 +49,24 @@ public class Tag
         {
             try
             {
-                TagGroup group = msbp.TagGroups[Group];
+                TagGroup? group = msbp.TagGroups.FirstOrDefault(x => x.Id == Group);
                 TagType type = msbp.TagGroups[Group].Tags[Type];
+
+                bool shortenTags = options.ShortenTags;
+                if (shortenTags && !isTagNameFirst(type.Name, msbp))
+                {
+                    shortenTags = false;
+                }
+                if (options.ShortenPagebreak)
+                {
+                    msbp.TagGroups[0].Tags[4].Name = "p";
+                }
 
                 if (Group == 0 && Type == 3)
                 {
                     if (IsTagEnd)
                     {
-                        if (options.ShortenTags)
+                        if (shortenTags)
                         {
                             return "</Color>";
                         }
@@ -64,15 +79,32 @@ public class Tag
                     {
                         var colorChannels = RawParameterToList(type, msbp);
                         Color color = Color.FromArgb((byte)colorChannels[3], (byte)colorChannels[0], (byte)colorChannels[1], (byte)colorChannels[2]);
-                        string colorName = msbp.Colors.FirstOrDefault(x => x.Value == color).Key;
-                    
-                        if (options.ShortenTags)
+
+                        if (msbp.Colors.Count(x => x.Value == color) > 0)
                         {
-                            return $"<Color {colorName}>";
+                            var colorName = msbp.Colors.FirstOrDefault(x => x.Value == color).Key;
+                        
+                            if (shortenTags)
+                            {
+                                return $"<Color {colorName}>";
+                            }
+                            else
+                            {
+                                return $"<System.Color {colorName}>";
+                            }
                         }
                         else
                         {
-                            return $"<System.Color {colorName}>";
+                            var colorString = GeneralUtils.ColorToString(color);
+                            
+                            if (shortenTags)
+                            {
+                                return $"<Color {colorString}>";
+                            }
+                            else
+                            {
+                                return $"<System.Color {colorString}>";
+                            }
                         }
                     }
                 }
@@ -88,7 +120,7 @@ public class Tag
                     {
                         if (options.ShortenPagebreak) return "<p>\n";
                     
-                        if (options.ShortenTags)
+                        if (shortenTags)
                         {
                             return "<PageBreak>\n";
                         }
@@ -100,7 +132,7 @@ public class Tag
 
                 if (IsTagEnd)
                 {
-                    if (options.ShortenTags)
+                    if (shortenTags)
                     {
                         return $"</{type.Name}>";
                     }
@@ -109,14 +141,14 @@ public class Tag
                 
                 if (RawParameters.Length == 0)
                 {
-                    if (options.ShortenTags)
+                    if (shortenTags)
                     {
                         return $"<{type.Name}>";
                     }
                     return $"<{group.Name}.{type.Name}>";
                 }
                 
-                if (options.ShortenTags)
+                if (shortenTags)
                 {
                     return $"<{type.Name}{RawParametersToString(type, msbp, options.ShortenTags)}>";
                 }
@@ -124,9 +156,58 @@ public class Tag
             }
             catch
             {
-                return this.Stringify(options);
+                if (!isBaseMsbp)
+                {
+                    string unformattedTag;
+                    if (IsTagEnd)
+                    {
+                        unformattedTag = $"</{Group}.{Type}>";
+                    }
+                    else
+                    {
+                        if (RawParameters.Length == 0)
+                        {
+                            unformattedTag = $"<{Group}.{Type}>";
+                        }
+                        else
+                        {
+                            unformattedTag = $"<{Group}.{Type}:{BitConverter.ToString(RawParameters)}>";
+                        }
+                    }
+
+                    Console.WriteLine($"Warning: Couldn't humanify the tag {unformattedTag} on {tagOrigin}.");
+                }
+                
+                return Stringify(options, tagOrigin);
             }
         }
+    }
+
+    private bool isTagNameFirst(string tagName, MSBP msbp)
+    {
+        int occurrences = 0;
+        foreach (var group in msbp.TagGroups)
+        {
+            foreach (var tag in group.Tags)
+            {
+                if (tag.Name == tagName)
+                {
+                    occurrences++;
+                    
+                    if (occurrences > 1)
+                    {
+                        return false;
+                    }
+                    
+                    if (group.Id == Group)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     private List<Object> RawParameterToList(TagType tag, MSBP msbp)
@@ -159,9 +240,9 @@ public class Tag
             }
 
             var paramType = param.Type;
-            if (tag.Name == "Font")
+            if (Group == 0 && Type == 1)
             {
-                paramType = ParamType.UInt16;
+                paramType = ParamType.Int16;
             }
             Object paramValue;
             switch (paramType)
@@ -507,6 +588,7 @@ public class Tag
 public class TagGroup
 {
     public string Name { get; set; }
+    public ushort Id { get; set; }
     public List<TagType> Tags = new();
 }
 

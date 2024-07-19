@@ -4,15 +4,15 @@ public class Style
 {
     public string Name { get; set; }
     
-    public uint RegionWidth { get; set; }
+    public int RegionWidth { get; set; }
     
-    public uint LineCount { get; set; }
+    public int LineCount { get; set; }
     
-    public uint FontId { get; set; }
+    public int FontId { get; set; }
     
-    public uint BaseColorId { get; set; }
+    public int BaseColorId { get; set; }
     
-    public Style(uint regionWidth, uint lineCount, uint fontId, uint baseColorId)
+    public Style(int regionWidth, int lineCount, int fontId, int baseColorId)
     {
         RegionWidth = regionWidth;
         LineCount = lineCount;

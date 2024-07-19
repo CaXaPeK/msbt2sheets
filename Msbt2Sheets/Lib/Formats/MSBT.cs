@@ -77,7 +77,7 @@ public class MSBT : GeneralFile
                     tsy1 = new(reader, sectionSize);
                     break;
                 case "TXT2":
-                    txt2 = new(reader, HasATR1, atr1, HasTSY1, tsy1, options, msbp);
+                    txt2 = new(reader, HasATR1, atr1, HasTSY1, tsy1, options, lbl1, fileName, msbp);
                     break;
                 default:
                     throw new DataException($"Unknown section magic!");
@@ -429,7 +429,7 @@ public class MSBT : GeneralFile
 
         public TXT2() {}
 
-        public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, MSBP? msbp = null)
+        public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, LBL1 lbl1, string fileName, MSBP? msbp = null)
         {
             Messages = new();
             
@@ -473,6 +473,7 @@ public class MSBT : GeneralFile
                 while (!reachedEnd)
                 {
                     short character = reader.ReadInt16();
+                    string tagOrigin = $"{fileName}@{lbl1.Labels[Messages.Count]}";
                     switch (character)
                     {
                         case 0x0E:
@@ -483,7 +484,7 @@ public class MSBT : GeneralFile
 
                             Tag tag = new(tagGroup, tagType, rawTagParameters, false);
 
-                            messageString.Append(tag.Stringify(options, msbp));
+                            messageString.Append(tag.Stringify(options, tagOrigin, msbp));
                             break;
                         
                         case 0x0F:
@@ -492,7 +493,7 @@ public class MSBT : GeneralFile
 
                             Tag tagEnd = new(tagEndGroup, tagEndType, new byte[0], true);
 
-                            messageString.Append(tagEnd.Stringify(options, msbp));
+                            messageString.Append(tagEnd.Stringify(options, tagOrigin, msbp));
                             break;
                         
                         case 0x00:

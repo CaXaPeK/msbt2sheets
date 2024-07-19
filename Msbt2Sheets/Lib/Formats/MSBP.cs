@@ -27,7 +27,11 @@ public class MSBP : GeneralFile
     public bool HasCTI1 = false;
     
     public Header Header = new();
-    
+
+    public MSBP()
+    {
+    }
+
     public MSBP(Stream fileStream)
     {
         MemoryStream ms = new MemoryStream();
@@ -137,6 +141,7 @@ public class MSBP : GeneralFile
             {
                 TagGroup group = new();
                 group.Name = tgg2.TagGroupNames[i];
+                group.Id = tgg2.TagGroupIds[i];
                 foreach (var tagId in tgg2.TagIdLists[i])
                 {
                     TagType tag = new();
@@ -443,11 +448,11 @@ public class MSBP : GeneralFile
 
         public SYL3(FileReader reader)
         {
-            uint styleCount = reader.ReadUInt16();
+            uint styleCount = reader.ReadUInt32();
 
             for (int i = 0; i < styleCount; i++)
             {
-                Styles.Add(new Style(reader.ReadUInt32(), reader.ReadUInt32(), reader.ReadUInt32(), reader.ReadUInt32()));
+                Styles.Add(new Style(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()));
             }
         }
     }
@@ -489,4 +494,119 @@ public class MSBP : GeneralFile
             }
         }
     }
+    
+    public static MSBP BaseMSBP = new MSBP()
+    {
+        TagGroups = new List<TagGroup>()
+        {
+            new TagGroup()
+            {
+                Name = "System",
+                Id = 0,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "Ruby",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "rt",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Font",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "face",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Size",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "percent",
+                                Type = ParamType.UInt16
+                            },
+                            new TagParameter()
+                            {
+                                Name = "size",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Color",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "r",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "g",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "b",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "a",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "name",
+                                Type = ParamType.String
+                            },
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "PageBreak",
+                        Parameters = new List<TagParameter>()
+                    },
+                    new TagType()
+                    {
+                        Name = "Reference",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "mstxt",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "label",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "lang",
+                                Type = ParamType.String
+                            },
+                        }
+                    }
+                }
+            }
+        }
+    };
 }
