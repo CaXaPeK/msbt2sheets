@@ -100,8 +100,24 @@ public class FileReader : IDisposable
 
     public string ReadTerminatedString(Encoding encoding, int maxLength = -1)
     {
+        if (encoding == Encoding.Unicode)
+        {
+            Console.WriteLine("");
+        }
+        
         List<byte> bytes = new(maxLength > 0 ? maxLength : 256);
-        int terminatorLength = encoding.GetByteCount("\0");
+        int charLength = encoding.GetByteCount("\0");
+        while (true)
+        {
+            byte[] charBytes = _reader.ReadBytes(charLength);
+            if (encoding.GetString(charBytes) == "\0")
+            {
+                return encoding.GetString(bytes.ToArray());
+            }
+            bytes.AddRange(charBytes);
+        }
+        
+        /*int terminatorLength = encoding.GetByteCount("\0");
 
         int nullBytesCount = 0;
         while (bytes.Count != maxLength && nullBytesCount < terminatorLength)
@@ -121,7 +137,7 @@ public class FileReader : IDisposable
             bytes.Add(0x00);
         }
 
-        return encoding.GetString(bytes.ToArray())[..^1].TrimEnd('\0');
+        return encoding.GetString(bytes.ToArray())[..^1].TrimEnd('\0');*/
     }
     
     public string ReadTerminatedStringAt(long position, Encoding encoding, int maxLength = -1)

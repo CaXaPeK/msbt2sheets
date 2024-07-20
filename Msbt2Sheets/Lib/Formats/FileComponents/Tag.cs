@@ -351,7 +351,7 @@ public class Tag
                     ushort strLength = BitConverter.ToUInt16(bytes);
                     position += 2;
                     paramValue = encoding.GetString(RawParameters[position..(position + strLength)]);
-                    paramValue = $"\"{paramValue}\"";
+                    paramValue = GeneralUtils.AddQuotesToString((string)paramValue);
                     position += strLength;
                     break;
                 case ParamType.List:

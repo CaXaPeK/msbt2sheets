@@ -747,6 +747,11 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 });
             }
 
+            if (msbt.FileName == "Client/System/KnowledgeHead/KH_EUen")
+            {
+                Console.WriteLine("");
+            }
+
             CellData attributesCell = new CellData();
             if (msbt.HasATR1 || msbt.HasTSY1)
             {
@@ -760,11 +765,11 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 {
                     if (msbp != null && message.Value.StyleId < msbp.Styles.Count && message.Value.StyleId >= 0)
                     {
-                        attributes.Add($"style: {msbp.Styles[message.Value.StyleId].Name}");
+                        attributes.Add($"Style: {msbp.Styles[message.Value.StyleId].Name}");
                     }
                     else
                     {
-                        attributes.Add($"styleId: {message.Value.StyleId}");
+                        attributes.Add($"StyleId: {message.Value.StyleId}");
                     }
                 }
 
