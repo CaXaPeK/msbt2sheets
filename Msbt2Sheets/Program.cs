@@ -1496,7 +1496,11 @@ static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions
                 },
                 UserEnteredFormat = new CellFormat()
                 {
-                    WrapStrategy = "WRAP"
+                    WrapStrategy = "WRAP",
+                    TextFormat = new TextFormat()
+                    {
+                        Bold = true
+                    }
                 }
             },
             new CellData()
@@ -1523,7 +1527,11 @@ static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions
                     },
                     UserEnteredFormat = new CellFormat()
                     {
-                        WrapStrategy = "WRAP"
+                        WrapStrategy = "WRAP",
+                        TextFormat = new TextFormat()
+                        {
+                            Bold = true
+                        }
                     }
                 },
                 new CellData()
@@ -1536,6 +1544,35 @@ static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions
             }
         });
     }
+    
+    sheet.Data[0].RowData.Add(new RowData()
+    {
+        Values = new List<CellData>()
+        {
+            new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = "Color identification"
+                },
+                UserEnteredFormat = new CellFormat()
+                {
+                    WrapStrategy = "WRAP",
+                    TextFormat = new TextFormat()
+                    {
+                        Bold = true
+                    }
+                }
+            },
+            new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = options.ColorIdentification
+                }
+            }
+        }
+    });
     
     sheet.Properties.GridProperties.RowCount = sheet.Data[0].RowData.Count;
     spreadsheet.Sheets.Insert(0, sheet);

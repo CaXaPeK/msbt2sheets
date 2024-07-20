@@ -17,6 +17,8 @@ public class ParsingOptions
     public bool HighlightTags = false;
 
     public string UnnecessaryPathPrefix = "";
+
+    public string ColorIdentification = "By RGBA bytes";
     
     public List<string> TransLangNames = new();
     public List<string> TransLangPaths = new();

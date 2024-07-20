@@ -79,6 +79,7 @@ public class Tag
                     {
                         if (RawParameters.Length == 2)
                         {
+                            options.ColorIdentification = "By color ID";
                             msbp.TagGroups[0].Tags[3].Parameters[0].Type = ParamType.Int16;
                             short colorId = (short)RawParameterToList(type, encoding, msbp)[0];
                             msbp.TagGroups[0].Tags[3].Parameters[0].Type = ParamType.UInt8;
