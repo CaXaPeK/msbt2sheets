@@ -15,6 +15,8 @@ public class ParsingOptions
     public int ColumnSize = 250;
 
     public bool HighlightTags = false;
+
+    public string UnnecessaryPathPrefix = "";
     
     public List<string> TransLangNames = new();
     public List<string> TransLangPaths = new();

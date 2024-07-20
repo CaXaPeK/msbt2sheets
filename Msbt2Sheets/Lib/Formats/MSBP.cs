@@ -307,13 +307,40 @@ public class MSBP : GeneralFile
                 tagGroupOffsets.Add(reader.ReadUInt32());
             }
 
+            bool hasGroupIds = false;
+            
             for (int i = 0; i < tagGroupCount; i++)
             {
                 reader.JumpTo(startPosition + tagGroupOffsets[i]);
-
-                TagGroupIds.Add(reader.ReadUInt16());
                 
-                ushort tagCount = reader.ReadUInt16();
+                ushort firstNumber = reader.ReadUInt16();
+                ushort tagCount;
+                ushort groupId;
+                if (i == 0)
+                {
+                    if (firstNumber == 0)
+                    {
+                        hasGroupIds = true;
+                    }
+                    else
+                    {
+                        hasGroupIds = false;
+                    }
+                }
+
+                if (hasGroupIds)
+                {
+                    groupId = firstNumber;
+                    tagCount = reader.ReadUInt16();
+                }
+                else
+                {
+                    groupId = (ushort)i;
+                    tagCount = firstNumber;
+                }
+
+                TagGroupIds.Add(groupId);
+                
                 List<ushort> tagIds = new();
                 for (int j = 0; j < tagCount; j++)
                 {
@@ -478,7 +505,7 @@ public class MSBP : GeneralFile
         public CTI1(FileReader reader)
         {
             long startPosition = reader.Position;
-            uint fileNameCount = reader.ReadUInt16();
+            uint fileNameCount = reader.ReadUInt32();
             
             List<uint> fileNameOffsets = new();
             for (int i = 0; i < fileNameCount; i++)

@@ -74,8 +74,9 @@ public class MessageAttribute
                         value = reader.ReadDouble().ToString();
                         break;
                     case ParamType.String:
-                        ushort strLength = reader.ReadUInt16();
-                        value = Encoding.Unicode.GetString(reader.ReadBytes(strLength));
+                        //ushort strLength = reader.ReadUInt16();
+                        //value = Encoding.Unicode.GetString(reader.ReadBytes(strLength));
+                        value = reader.ReadByte().ToString();
                         break;
                     case ParamType.List:
                         byte id = reader.ReadByte();

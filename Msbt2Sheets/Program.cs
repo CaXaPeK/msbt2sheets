@@ -11,6 +11,8 @@ using Msbt2Sheets.Sheets;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+BitConverter.ToUInt32(new byte[] {0, 0, 0, 1});
+
 string credPath = Environment.CurrentDirectory + "/data/credentials.txt";
 CheckFile(credPath);
 
@@ -100,7 +102,8 @@ static void MsbtToSpreadsheet(GoogleSheetsManager sheetsManager, Dictionary<stri
     
     MSBP msbp = ParseMSBP(fileOptions);
     ParsingOptions options = SetParsingOptions(fileOptions, msbp);
-    
+
+    options.UnnecessaryPathPrefix = FindUnnecessaryPathPrefix($"{languagesPath}/{internalLangNames[0]}/", "");
     List<List<MSBT>> languages = ParseAllMSBTs(languagesPath, internalLangNames, options, msbp);
 
     Spreadsheet spreadsheet = LanguagesToSpreadsheet(languages, sheetLangNames, options, fileOptions, msbp);
@@ -391,6 +394,56 @@ static ParsingOptions SetParsingOptions(Dictionary<string, string> fileOptions, 
     return options;
 }
 
+static string FindUnnecessaryPathPrefix(string languagePath, string previousPrefix)
+{
+    List<string> directories = Directory.GetDirectories(languagePath + previousPrefix).ToList();
+    List<string> files = Directory.GetFiles(languagePath + previousPrefix).ToList();
+
+    if (files.Count(x => Path.GetExtension(x) == ".msbt") > 0)
+    {
+        return previousPrefix;
+    }
+
+    List<string> dirsWithMsbt = new List<string>();
+    foreach (var dir in directories)
+    {
+        if (DirectoryHasMsbts(dir))
+        {
+            dirsWithMsbt.Add(dir);
+        }
+    }
+
+    if (dirsWithMsbt.Count == 1)
+    {
+        return FindUnnecessaryPathPrefix(languagePath, previousPrefix + Path.GetFileName(dirsWithMsbt[0]) + '/');
+    }
+    else
+    {
+        return previousPrefix;
+    }
+}
+
+static bool DirectoryHasMsbts(string path)
+{
+    List<string> directories = Directory.GetDirectories(path).ToList();
+    List<string> files = Directory.GetFiles(path).ToList();
+
+    if (files.Count(x => Path.GetExtension(x) == ".msbt") > 0)
+    {
+        return true;
+    }
+
+    foreach (var dir in directories)
+    {
+        if (DirectoryHasMsbts(path + '/' + Path.GetFileName(dir)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static MSBP? ParseMSBP(Dictionary<string, string> fileOptions)
 {
     Console.Clear();
@@ -460,7 +513,7 @@ static List<MSBT> ParseMSBTFolder(string folderPath, string fileNamePrefix, stri
     List<MSBT> msbtsInSubdirectories = new();
     foreach (var directoryPath in directoryPaths)
     {
-        msbtsInSubdirectories.AddRange(ParseMSBTFolder(directoryPath, Path.GetFileName(directoryPath), internalLangName, options, msbp));
+        msbtsInSubdirectories.AddRange(ParseMSBTFolder(directoryPath, fileNamePrefix + Path.GetFileName(directoryPath) + "/", internalLangName, options, msbp));
     }
     msbts.AddRange(msbtsInSubdirectories);
 
@@ -537,6 +590,12 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 }
             }
         };
+
+        int columnCount = 1 + langs.Count + options.TransLangNames.Count;
+        if (options.TransLangNames.Count == 0 && (msbt.HasATR1 || msbt.HasTSY1))
+        {
+            columnCount++;
+        }
         
         Sheet sheet = new Sheet()
         {
@@ -546,8 +605,8 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 GridProperties = new GridProperties()
                 {
                     RowCount = 1 + msbt.Messages.Count,
-                    ColumnCount = 1 + langs.Count + options.TransLangNames.Count,
-                    FrozenRowCount = 1,
+                    ColumnCount = columnCount,
+                    FrozenRowCount = msbt.Messages.Count != 0 ? 1 : 0,
                     FrozenColumnCount = options.FreezeColumnCount != 1 + langs.Count ? options.FreezeColumnCount : 1
                 },
                 SheetId = j + 1
@@ -630,6 +689,18 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 UserEnteredFormat = Constants.HEADER_CELL_FORMAT_PERCENT_CENTERED
             });
         }
+
+        if (options.TransLangNames.Count == 0 && (msbt.HasATR1 || msbt.HasTSY1))
+        {
+            headerRow.Values.Add(new CellData()
+            {
+                UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = "Attributes"
+                },
+                UserEnteredFormat = Constants.HEADER_CELL_FORMAT_PERCENT_CENTERED
+            });
+        }
         
         sheet.Data[0].RowData.Add(headerRow);
         
@@ -676,6 +747,45 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 });
             }
 
+            CellData attributesCell = new CellData();
+            if (msbt.HasATR1 || msbt.HasTSY1)
+            {
+                List<string> attributes = new();
+                if (msbt.HasATR1)
+                {
+                    attributes.AddRange(message.Value.Attribute.ToStringList(msbp));
+                }
+
+                if (msbt.HasTSY1)
+                {
+                    if (msbp != null && message.Value.StyleId < msbp.Styles.Count && message.Value.StyleId >= 0)
+                    {
+                        attributes.Add($"style: {msbp.Styles[message.Value.StyleId].Name}");
+                    }
+                    else
+                    {
+                        attributes.Add($"styleId: {message.Value.StyleId}");
+                    }
+                }
+
+                string attributesCellData = "";
+                foreach (var attr in attributes)
+                {
+                    attributesCellData += $"{attr}; ";
+                }
+                attributesCellData = attributesCellData.Trim();
+
+                attributesCell.UserEnteredValue = new ExtendedValue()
+                {
+                    StringValue = attributesCellData
+                };
+                
+                if (options.TransLangNames.Count == 0)
+                {
+                    messageRow.Values.Add(attributesCell);
+                }
+            }
+
             for (int i = sheetLangNames.Count; i < langs.Count; i++)
             {
                 string messageText = "";
@@ -709,45 +819,7 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                     TextFormatRuns = options.HighlightTags ? HighlightRuns(messageText) : null
                 });
                 
-                if (msbt.HasATR1 || msbt.HasTSY1)
-                {
-                    List<string> attributes = new();
-                    if (msbt.HasATR1)
-                    {
-                        attributes.AddRange(message.Value.Attribute.ToStringList(msbp));
-                    }
-
-                    if (msbt.HasTSY1)
-                    {
-                        if (msbp != null && message.Value.StyleId < msbp.Styles.Count && message.Value.StyleId >= 0)
-                        {
-                            attributes.Add($"style: {msbp.Styles[message.Value.StyleId].Name}");
-                        }
-                        else
-                        {
-                            attributes.Add($"styleId: {message.Value.StyleId}");
-                        }
-                    }
-
-                    string attributesCell = "";
-                    foreach (var attr in attributes)
-                    {
-                        attributesCell += $"{attr}; ";
-                    }
-                    attributesCell = attributesCell.Trim();
-                
-                    messageRow.Values.Add(new CellData()
-                    {
-                        UserEnteredValue = new ExtendedValue()
-                        {
-                            StringValue = attributesCell
-                        }
-                    });
-                }
-                else
-                {
-                    messageRow.Values.Add(new CellData());
-                }
+                messageRow.Values.Add(attributesCell);
             }
             
             sheet.Data[0].RowData.Add(messageRow);
@@ -758,22 +830,27 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
 
     if (msbp != null)
     {
-        if (msbp.HasATI2)
+        if (msbp.SourceFileNames.Count > 0)
+        {
+            AddSourceFilesToSpreadsheet(ref spreadsheet, msbp);
+        }
+        
+        if (msbp.AttributeInfos.Count > 0)
         {
             AddAttributesSheetToSpreadsheet(ref spreadsheet, msbp);
         }
 
-        if (msbp.HasTGG2)
+        if (msbp.TagGroups.Count > 0)
         {
             AddTagsSheetToSpreadsheet(ref spreadsheet, msbp);
         }
 
-        if (msbp.HasSYL3)
+        if (msbp.Styles.Count > 0)
         {
             AddStylesToSpreadsheet(ref spreadsheet, msbp);
         }
 
-        if (msbp.HasCLR1)
+        if (msbp.Colors.Count > 0)
         {
             AddColorsSheetToSpreadsheet(ref spreadsheet, msbp);
         }
@@ -812,86 +889,89 @@ static void AddStatsToSpreadsheet(ref Spreadsheet spreadsheet, List<string> orig
         Merges = new List<GridRange>()
     };
 
-    var zeroPercentRule = new ConditionalFormatRule()
+    if (transLangNames.Count > 0)
     {
-        Ranges = new List<GridRange>(),
-        BooleanRule = new BooleanRule()
+        var zeroPercentRule = new ConditionalFormatRule()
         {
-            Condition = new BooleanCondition()
+            Ranges = new List<GridRange>(),
+            BooleanRule = new BooleanRule()
             {
-                Type = "NUMBER_EQ",
-                Values = new List<ConditionValue>()
+                Condition = new BooleanCondition()
                 {
-                    new ConditionValue()
+                    Type = "NUMBER_EQ",
+                    Values = new List<ConditionValue>()
                     {
-                        UserEnteredValue = "0%"
+                        new ConditionValue()
+                        {
+                            UserEnteredValue = "0%"
+                        }
                     }
-                }
-            },
-            Format = new CellFormat()
-            {
-                BackgroundColorStyle = new ColorStyle()
+                },
+                Format = new CellFormat()
                 {
-                    RgbColor = new Color()
+                    BackgroundColorStyle = new ColorStyle()
                     {
-                        Red = 0.918f,
-                        Green = 0.6f,
-                        Blue = 0.6f,
-                        Alpha = 1
+                        RgbColor = new Color()
+                        {
+                            Red = 0.918f,
+                            Green = 0.6f,
+                            Blue = 0.6f,
+                            Alpha = 1
+                        }
                     }
                 }
             }
-        }
-    };
-        
-    var hundredPercentRule = new ConditionalFormatRule()
-    {
-        Ranges = new List<GridRange>(),
-        BooleanRule = new BooleanRule()
-        {
-            Condition = new BooleanCondition()
-            {
-                Type = "NUMBER_EQ",
-                Values = new List<ConditionValue>()
-                {
-                    new ConditionValue()
-                    {
-                        UserEnteredValue = "100%"
-                    }
-                }
-            },
-            Format = new CellFormat()
-            {
-                BackgroundColorStyle = new ColorStyle()
-                {
-                    RgbColor = new Color()
-                    {
-                        Red = 0.851f,
-                        Green = 0.918f,
-                        Blue = 0.827f,
-                        Alpha = 1
-                    }
-                }
-            }
-        }
-    };
-    
-    for (int i = 0; i < transLangNames.Count; i++)
-    {
-        GridRange percentRange = new GridRange()
-        {
-            SheetId = statsSheet.Properties.SheetId,
-            StartRowIndex = 3,
-            StartColumnIndex = 4 + i * 2,
-            EndColumnIndex = 5 + i * 2
         };
         
-        zeroPercentRule.Ranges.Add(percentRange);
-        hundredPercentRule.Ranges.Add(percentRange);
-    }
+        var hundredPercentRule = new ConditionalFormatRule()
+        {
+            Ranges = new List<GridRange>(),
+            BooleanRule = new BooleanRule()
+            {
+                Condition = new BooleanCondition()
+                {
+                    Type = "NUMBER_EQ",
+                    Values = new List<ConditionValue>()
+                    {
+                        new ConditionValue()
+                        {
+                            UserEnteredValue = "100%"
+                        }
+                    }
+                },
+                Format = new CellFormat()
+                {
+                    BackgroundColorStyle = new ColorStyle()
+                    {
+                        RgbColor = new Color()
+                        {
+                            Red = 0.851f,
+                            Green = 0.918f,
+                            Blue = 0.827f,
+                            Alpha = 1
+                        }
+                    }
+                }
+            }
+        };
     
-    statsSheet.ConditionalFormats.Add(zeroPercentRule);
-    statsSheet.ConditionalFormats.Add(hundredPercentRule);
+        for (int i = 0; i < transLangNames.Count; i++)
+        {
+            GridRange percentRange = new GridRange()
+            {
+                SheetId = statsSheet.Properties.SheetId,
+                StartRowIndex = 3,
+                StartColumnIndex = 4 + i * 2,
+                EndColumnIndex = 5 + i * 2
+            };
+        
+            zeroPercentRule.Ranges.Add(percentRange);
+            hundredPercentRule.Ranges.Add(percentRange);
+        }
+    
+        statsSheet.ConditionalFormats.Add(zeroPercentRule);
+        statsSheet.ConditionalFormats.Add(hundredPercentRule);
+    }
 
     RowData langsHeaderRow = new()
     {
@@ -1051,7 +1131,7 @@ static void AddStatsToSpreadsheet(ref Spreadsheet spreadsheet, List<string> orig
         {
             UserEnteredValue = new ExtendedValue()
             {
-                FormulaValue = $"=(C3-{NumToColumnName(3 + i * 2)}3)/C3"
+                FormulaValue = $"=IF(C3<>0; (C3-{NumToColumnName(3 + i * 2)}3)/C3; 0)"
             },
             UserEnteredFormat = Constants.HEADER_CELL_FORMAT_PERCENT
         });
@@ -1089,9 +1169,12 @@ static void AddStatsToSpreadsheet(ref Spreadsheet spreadsheet, List<string> orig
                 },
                 new CellData()
                 {
-                    UserEnteredValue = new ExtendedValue()
+                    UserEnteredValue = sheet.Data[0].RowData.Count > 1 ? new ExtendedValue()
                     {
                         FormulaValue = $"=SUMPRODUCT(LEN('{sheet.Properties.Title}'!B2:B))"
+                    } : new ExtendedValue()
+                    {
+                        NumberValue = 0
                     }
                 }
             }
@@ -1124,7 +1207,7 @@ static void AddStatsToSpreadsheet(ref Spreadsheet spreadsheet, List<string> orig
             {
                 UserEnteredValue = new ExtendedValue()
                 {
-                    FormulaValue = $"=(C{sheetNum + 3}-{NumToColumnName(3 + i * 2)}{sheetNum + 3})/C{sheetNum + 3}"
+                    FormulaValue = $"=IF(C{sheetNum + 3}<>0; (C{sheetNum + 3}-{NumToColumnName(3 + i * 2)}{sheetNum + 3})/C{sheetNum + 3}; 0)"
                 },
                 UserEnteredFormat = new CellFormat()
                 {
@@ -1374,7 +1457,6 @@ static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions
             GridProperties = new GridProperties()
             {
                 ColumnCount = 2,
-                RowCount = 2,
                 FrozenRowCount = 1
             }
         },
@@ -1396,8 +1478,8 @@ static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions
     };
     
     sheet.Data[0].RowData.Add(headerRow);
-
-    RowData addLinebreaks = new RowData()
+    
+    sheet.Data[0].RowData.Add(new RowData()
     {
         Values = new List<CellData>()
         {
@@ -1420,10 +1502,37 @@ static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions
                 }
             }
         }
-    };
-    
-    sheet.Data[0].RowData.Add(addLinebreaks);
+    });
 
+    if (options.UnnecessaryPathPrefix != "")
+    {
+        sheet.Data[0].RowData.Add(new RowData()
+        {
+            Values = new List<CellData>()
+            {
+                new CellData()
+                {
+                    UserEnteredValue = new ExtendedValue()
+                    {
+                        StringValue = "Common MSBT path prefix"
+                    },
+                    UserEnteredFormat = new CellFormat()
+                    {
+                        WrapStrategy = "WRAP"
+                    }
+                },
+                new CellData()
+                {
+                    UserEnteredValue = new ExtendedValue()
+                    {
+                        StringValue = options.UnnecessaryPathPrefix
+                    }
+                }
+            }
+        });
+    }
+    
+    sheet.Properties.GridProperties.RowCount = sheet.Data[0].RowData.Count;
     spreadsheet.Sheets.Insert(0, sheet);
 }
 
@@ -1498,7 +1607,7 @@ static void AddStylesToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
                 {
                     UserEnteredValue = MsbpHasColor(style.BaseColorId, msbp) ? new ExtendedValue()
                     {
-                        StringValue = GetColorNameFromId(style.BaseColorId, msbp)
+                        StringValue = GeneralUtils.GetColorNameFromId(style.BaseColorId, msbp)
                     } : new ExtendedValue()
                     {
                         NumberValue = style.BaseColorId
@@ -1516,6 +1625,8 @@ static void AddStylesToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
 
 static void AddTagsSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
 {
+    msbp.TagGroups[0].Tags[4].Name = "PageBreak";
+    
     Sheet sheet = new Sheet()
     {
         Properties = new SheetProperties()
@@ -1774,6 +1885,48 @@ static void AddTagsSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
     spreadsheet.Sheets.Insert(0, sheet);
 }
 
+static void AddSourceFilesToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
+{
+    Sheet sheet = new Sheet()
+    {
+        Properties = new SheetProperties()
+        {
+            Title = "#SourceFiles",
+            GridProperties = new GridProperties()
+            {
+                RowCount = msbp.SourceFileNames.Count,
+                ColumnCount = 1
+            }
+        },
+        Data = new List<GridData>()
+        {
+            new GridData()
+            {
+                RowData = new List<RowData>()
+            }
+        }
+    };
+
+    foreach (var filename in msbp.SourceFileNames)
+    {
+        sheet.Data[0].RowData.Add(new RowData()
+        {
+            Values = new List<CellData>()
+            {
+                new CellData()
+                {
+                    UserEnteredValue = new ExtendedValue()
+                    {
+                        StringValue = filename
+                    }
+                }
+            }
+        });
+    }
+    
+    spreadsheet.Sheets.Insert(0, sheet);
+}
+
 static void AddAttributesSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
 {
     Sheet sheet = new Sheet()
@@ -1908,10 +2061,11 @@ static void MergeEmptyVertically(ref Sheet sheet, int columnIndex)
         {
             RowData lowerRow = sheet.Data[0].RowData[j];
             string lowerValue = lowerRow.Values[columnIndex].UserEnteredValue.StringValue;
+            string lowerLeftValue = lowerRow.Values[0].UserEnteredValue.StringValue;
             bool isLastRow = j + 1 == sheet.Data[0].RowData.Count;
-            if (lowerValue != "" || isLastRow && lowerValue == "")
+            if (lowerValue != "" || lowerLeftValue != "" || isLastRow && lowerValue == "" && lowerLeftValue == "")
             {
-                if (isLastRow && lowerValue == "")
+                if (isLastRow && lowerValue == "" && lowerLeftValue == "")
                 {
                     height++;
                 }
@@ -1949,11 +2103,14 @@ static void MergeEmptyParamsVertically(ref Sheet sheet)
         {
             RowData lowerRow = sheet.Data[0].RowData[j];
             bool isLastRow = j + 1 == sheet.Data[0].RowData.Count;
+            string lowerGroup = lowerRow.Values[0].UserEnteredValue.StringValue;
+            string lowerTag = lowerRow.Values[1].UserEnteredValue.StringValue;
             string lowerParam = lowerRow.Values[2].UserEnteredValue.StringValue;
             string lowerParamType = lowerRow.Values[3].UserEnteredValue.StringValue;
-            if (lowerParam != "" || lowerParamType != "" || isLastRow && lowerParam == "" && lowerParamType == "")
+            if (lowerParam != "" || lowerParamType != "" || lowerGroup != "" || lowerTag != "" ||
+                isLastRow && lowerParam == "" && lowerParamType == "" && lowerTag == "" && lowerGroup == "")
             {
-                if (isLastRow)
+                if (isLastRow && lowerParam == "" && lowerParamType == "" && lowerTag == "" && lowerGroup == "")
                 {
                     height++;
                 }
@@ -2036,21 +2193,7 @@ static string ParamTypeToString(ParamType type)
     }
 }
 
-static string GetColorNameFromId(int index, MSBP msbp)
-{
-    uint i = 0;
-    foreach (var color in msbp.Colors)
-    {
-        if (i == index)
-        {
-            return color.Key;
-        }
 
-        i++;
-    }
-
-    return index.ToString();
-}
 
 static System.Drawing.Color GetColorFromId(int index, MSBP msbp)
 {

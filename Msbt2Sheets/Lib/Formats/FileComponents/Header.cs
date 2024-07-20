@@ -16,6 +16,11 @@ public class Header
     {
         get
         {
+            if (Endianness == Endianness.BigEndian && EncodingType == EncodingType.UTF16)
+            {
+                return Encoding.BigEndianUnicode;
+            }
+            
             switch (EncodingType)
             {
                 case EncodingType.UTF8:

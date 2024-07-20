@@ -31,7 +31,7 @@ public class MSBT : GeneralFile
     
     public MSBT(Stream fileStream, ParsingOptions options, string? fileName = null, string? language = null, MSBP? msbp = null)
     {
-        FileName = fileName;
+        FileName = fileName.Substring(options.UnnecessaryPathPrefix.Length);
         Language = language;
 
         MemoryStream ms = new MemoryStream();
@@ -77,7 +77,7 @@ public class MSBT : GeneralFile
                     tsy1 = new(reader, sectionSize);
                     break;
                 case "TXT2":
-                    txt2 = new(reader, HasATR1, atr1, HasTSY1, tsy1, options, lbl1, fileName, msbp);
+                    txt2 = new(reader, HasATR1, atr1, HasTSY1, tsy1, options, lbl1, fileName, Header.Encoding, msbp);
                     break;
                 default:
                     throw new DataException($"Unknown section magic!");
@@ -320,7 +320,7 @@ public class MSBT : GeneralFile
             long startPosition = reader.Position;
             uint attributeCount = reader.ReadUInt32();
             uint bytesPerAttribute = reader.ReadUInt32();
-            bool hasStrings = sectionSize > (8 + (attributeCount * bytesPerAttribute));
+            bool hasStrings = sectionSize > 8 + attributeCount * bytesPerAttribute;
             
             msbt.BytesPerAttribute = bytesPerAttribute;
             msbt.UsesAttributeStrings = hasStrings;
@@ -335,10 +335,19 @@ public class MSBT : GeneralFile
             {
                 if (hasStrings)
                 {
+                    string stringData = reader.ReadTerminatedString(msbt.Header.Encoding);
+                    Attributes.Add(new(byteData, stringData));
+                    
+                    /*if ((BitConverter.IsLittleEndian && reader.Endianness == Endianness.BigEndian) ||
+                        (!BitConverter.IsLittleEndian && reader.Endianness == Endianness.LittleEndian))
+                    {
+                        Array.Reverse(byteData);
+                    }
+                    
                     uint stringOffset = BitConverter.ToUInt32(byteData[..4]);
                     string stringData = reader.ReadTerminatedStringAt(startPosition + stringOffset);
                 
-                    Attributes.Add(new(byteData, stringData));
+                    Attributes.Add(new(byteData, stringData));*/
                 }
                 else
                 {
@@ -429,7 +438,7 @@ public class MSBT : GeneralFile
 
         public TXT2() {}
 
-        public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, LBL1 lbl1, string fileName, MSBP? msbp = null)
+        public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, LBL1 lbl1, string fileName, Encoding encoding, MSBP? msbp = null)
         {
             Messages = new();
             
@@ -458,7 +467,8 @@ public class MSBT : GeneralFile
                     }
                     else
                     {
-                        throw new InvalidDataException("Numbers of TSY1 and TXT2 entries don't match!");
+                        message.StyleId = -1;
+                        //throw new InvalidDataException("Numbers of TSY1 and TXT2 entries don't match!");
                     }
                 }
 
@@ -484,7 +494,7 @@ public class MSBT : GeneralFile
 
                             Tag tag = new(tagGroup, tagType, rawTagParameters, false);
 
-                            messageString.Append(tag.Stringify(options, tagOrigin, msbp));
+                            messageString.Append(tag.Stringify(options, tagOrigin, encoding, msbp));
                             break;
                         
                         case 0x0F:
@@ -493,15 +503,30 @@ public class MSBT : GeneralFile
 
                             Tag tagEnd = new(tagEndGroup, tagEndType, new byte[0], true);
 
-                            messageString.Append(tagEnd.Stringify(options, tagOrigin, msbp));
+                            messageString.Append(tagEnd.Stringify(options, tagOrigin, encoding, msbp));
                             break;
                         
                         case 0x00:
                             reachedEnd = true;
                             break;
                         
+                        case 0x3C:
+                            messageString.Append('\\');
+                            messageString.Append('<');
+                            break;
+                        
+                        case 0x3E:
+                            messageString.Append('\\');
+                            messageString.Append('>');
+                            break;
+                        
+                        case 0x5C:
+                            messageString.Append('\\');
+                            messageString.Append('\\');
+                            break;
+                        
                         default:
-                            messageString.Append(Encoding.Unicode.GetString(BitConverter.GetBytes(character)));
+                            messageString.Append(encoding.GetString(BitConverter.GetBytes(character)));
                             break;
                     }
                 }

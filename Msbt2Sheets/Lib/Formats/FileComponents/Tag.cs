@@ -20,13 +20,13 @@ public class Tag
         IsTagEnd = isTagEnd;
     }
 
-    public string Stringify(ParsingOptions options, string tagOrigin, MSBP? msbp = null, bool isBaseMsbp = false)
+    public string Stringify(ParsingOptions options, string tagOrigin, Encoding encoding, MSBP? msbp = null, bool isBaseMsbp = false)
     {
         if (msbp == null)
         {
             if (Group == 0)
             {
-                return Stringify(options, tagOrigin, MSBP.BaseMSBP, true);
+                return Stringify(options, tagOrigin, encoding, MSBP.BaseMSBP, true);
             }
             
             if (IsTagEnd)
@@ -77,7 +77,28 @@ public class Tag
                     }
                     else
                     {
-                        var colorChannels = RawParameterToList(type, msbp);
+                        if (RawParameters.Length == 2)
+                        {
+                            msbp.TagGroups[0].Tags[3].Parameters[0].Type = ParamType.Int16;
+                            short colorId = (short)RawParameterToList(type, encoding, msbp)[0];
+                            msbp.TagGroups[0].Tags[3].Parameters[0].Type = ParamType.UInt8;
+
+                            if (msbp.Colors.Count > colorId)
+                            {
+                                string colorName = GeneralUtils.GetColorNameFromId(colorId, msbp);
+                                
+                                if (shortenTags)
+                                {
+                                    return $"<Color {colorName}>";
+                                }
+                                else
+                                {
+                                    return $"<System.Color {colorName}>";
+                                }
+                            }
+                        }
+                        
+                        var colorChannels = RawParameterToList(type, encoding, msbp);
                         Color color = Color.FromArgb((byte)colorChannels[3], (byte)colorChannels[0], (byte)colorChannels[1], (byte)colorChannels[2]);
 
                         if (msbp.Colors.Count(x => x.Value == color) > 0)
@@ -150,9 +171,9 @@ public class Tag
                 
                 if (shortenTags)
                 {
-                    return $"<{type.Name}{RawParametersToString(type, msbp, options.ShortenTags)}>";
+                    return $"<{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags)}>";
                 }
-                return $"<{group.Name}.{type.Name}{RawParametersToString(type, msbp, options.ShortenTags)}>";
+                return $"<{group.Name}.{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags)}>";
             }
             catch
             {
@@ -175,10 +196,10 @@ public class Tag
                         }
                     }
 
-                    Console.WriteLine($"Warning: Couldn't humanify the tag {unformattedTag} on {tagOrigin}.");
+                    //Console.WriteLine($"Warning: Couldn't humanify the tag {unformattedTag} on {tagOrigin}.");
                 }
                 
-                return Stringify(options, tagOrigin);
+                return Stringify(options, tagOrigin, encoding);
             }
         }
     }
@@ -210,7 +231,7 @@ public class Tag
         return true;
     }
 
-    private List<Object> RawParameterToList(TagType tag, MSBP msbp)
+    private List<Object> RawParameterToList(TagType tag, Encoding encoding, MSBP msbp)
     {
         List<Object> list = new();
 
@@ -230,13 +251,24 @@ public class Tag
                 }
             };
         }
-        
+
         int position = 0;
+        
         foreach (var param in tag.Parameters)
         {
-            if (position == RawParameters.Length)
+            if (position >= RawParameters.Length)
             {
                 break;
+            }
+
+            if (RawParameters[position] == 0xCD)
+            {
+                list.Add("CD");
+                position++;
+                if (position >= RawParameters.Length)
+                {
+                    break;
+                }
             }
 
             var paramType = param.Type;
@@ -245,6 +277,7 @@ public class Tag
                 paramType = ParamType.Int16;
             }
             Object paramValue;
+            byte[] bytes;
             switch (paramType)
             {
                 case ParamType.UInt8:
@@ -252,11 +285,21 @@ public class Tag
                     position += 1;
                     break;
                 case ParamType.UInt16:
-                    paramValue = BitConverter.ToUInt16(RawParameters[position..(position + 2)]);
+                    bytes = RawParameters[position..(position + 2)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    paramValue = BitConverter.ToUInt16(bytes);
                     position += 2;
                     break;
                 case ParamType.UInt32:
-                    paramValue = BitConverter.ToUInt32(RawParameters[position..(position + 4)]);
+                    bytes = RawParameters[position..(position + 4)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    paramValue = BitConverter.ToUInt32(bytes);
                     position += 4;
                     break;
                 case ParamType.Int8:
@@ -264,32 +307,58 @@ public class Tag
                     position += 1;
                     break;
                 case ParamType.Int16:
-                    paramValue = BitConverter.ToInt16(RawParameters[position..(position + 2)]);
+                    bytes = RawParameters[position..(position + 2)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    paramValue = BitConverter.ToInt16(bytes);
                     position += 2;
                     break;
                 case ParamType.Int32:
-                    paramValue = BitConverter.ToInt32(RawParameters[position..(position + 4)]);
+                    bytes = RawParameters[position..(position + 4)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    paramValue = BitConverter.ToInt32(bytes);
                     position += 4;
                     break;
                 case ParamType.Float:
-                    paramValue = BitConverter.ToSingle(RawParameters[position..(position + 4)]);
+                    bytes = RawParameters[position..(position + 4)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    paramValue = BitConverter.ToSingle(bytes);
                     position += 4;
                     break;
                 case ParamType.Double:
-                    paramValue = BitConverter.ToDouble(RawParameters[position..(position + 8)]);
+                    bytes = RawParameters[position..(position + 8)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    paramValue = BitConverter.ToDouble(bytes);
                     position += 8;
                     break;
                 case ParamType.String:
-                    ushort strLength = BitConverter.ToUInt16(RawParameters[position..(position + 2)]);
+                    bytes = RawParameters[position..(position + 2)];
+                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    {
+                        bytes = bytes.Reverse().ToArray();
+                    }
+                    ushort strLength = BitConverter.ToUInt16(bytes);
                     position += 2;
-                    paramValue = Encoding.Unicode.GetString(RawParameters[position..(position + strLength)]);
+                    paramValue = encoding.GetString(RawParameters[position..(position + strLength)]);
                     paramValue = $"\"{paramValue}\"";
                     position += strLength;
                     break;
                 case ParamType.List:
                     byte listItemId = RawParameters[position];
-                    position += 2;
-                    paramValue = param.List[param.ListItemIds.IndexOf(listItemId)];
+                    position += 1;
+                    //paramValue = param.List[param.ListItemIds.IndexOf(listItemId)];
+                    paramValue = param.List[listItemId];
                     break;
                 default:
                     throw new InvalidDataException($"Tag \"{tag.Name}\" from MSBP has an invalid parameter type!");
@@ -298,20 +367,32 @@ public class Tag
             list.Add(paramValue);
         }
 
+        if (position < RawParameters.Length)
+        {
+            list.Add(BitConverter.ToString(RawParameters[position..RawParameters.Length]));
+        }
+
         return list;
     }
 
-    private string RawParametersToString(TagType tag, MSBP msbp, bool shorten = false)
+    private string RawParametersToString(TagType tag, MSBP msbp, Encoding encoding, bool shorten = false)
     {
         string result = "";
 
-        var parameters = RawParameterToList(tag, msbp);
+        var parameters = RawParameterToList(tag, encoding, msbp);
 
         for (int i = 0; i < parameters.Count; i++)
         {
             if (!shorten)
             {
-                result += $" {tag.Parameters[i].Name}={parameters[i]}";
+                if (parameters[i].ToString() == "CD")
+                {
+                    result += $" bytes={parameters[i]}";
+                }
+                else
+                {
+                    result += $" {tag.Parameters[i].Name}={parameters[i]}";
+                }
             }
             else
             {
