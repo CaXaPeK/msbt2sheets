@@ -123,7 +123,14 @@ public class MSBP : GeneralFile
         {
             for (int i = 0; i < clr1.Colors.Count; i++)
             {
-                Colors.Add(clb1.ColorLabels[i], clr1.Colors[i]);
+                if (i < clb1.ColorLabels.Count)
+                {
+                    Colors.Add(clb1.ColorLabels[i], clr1.Colors[i]);
+                }
+                else
+                {
+                    Colors.Add(i.ToString(), clr1.Colors[i]);
+                }
             }
         }
 

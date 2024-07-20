@@ -20,7 +20,14 @@ public class GeneralUtils
         {
             if (i == index)
             {
-                return color.Key;
+                if (msbp.HasCLB1)
+                {
+                    return color.Key;
+                }
+                else
+                {
+                    return ColorToString(color.Value);
+                }
             }
 
             i++;

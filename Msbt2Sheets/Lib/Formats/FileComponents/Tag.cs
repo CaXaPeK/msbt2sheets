@@ -87,7 +87,7 @@ public class Tag
                             if (msbp.Colors.Count > colorId)
                             {
                                 string colorName = GeneralUtils.GetColorNameFromId(colorId, msbp);
-                                
+                                    
                                 if (shortenTags)
                                 {
                                     return $"<Color {colorName}>";
@@ -102,7 +102,7 @@ public class Tag
                         var colorChannels = RawParameterToList(type, encoding, msbp);
                         Color color = Color.FromArgb((byte)colorChannels[3], (byte)colorChannels[0], (byte)colorChannels[1], (byte)colorChannels[2]);
 
-                        if (msbp.Colors.Count(x => x.Value == color) > 0)
+                        if (msbp.Colors.Count(x => x.Value == color) > 0 && msbp.HasCLB1)
                         {
                             var colorName = msbp.Colors.FirstOrDefault(x => x.Value == color).Key;
                         

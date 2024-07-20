@@ -857,7 +857,14 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
 
         if (msbp.Colors.Count > 0)
         {
-            AddColorsSheetToSpreadsheet(ref spreadsheet, msbp);
+            if (msbp.HasCLB1)
+            {
+                AddColorsSheetToSpreadsheet(ref spreadsheet, msbp);
+            }
+            else
+            {
+                AddColorsSheetToSpreadsheet(ref spreadsheet, msbp, false);
+            }
         }
     }
     
@@ -1356,7 +1363,7 @@ static void AddInternalMSBTDataToSpreadsheet(ref Spreadsheet spreadsheet, List<M
     spreadsheet.Sheets.Insert(0, dataSheet);
 }
 
-static void AddColorsSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
+static void AddColorsSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp, bool hasNames = true)
 {
     Sheet colorSheet = new Sheet()
     {
@@ -1365,7 +1372,7 @@ static void AddColorsSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
             Title = "#BaseColors",
             GridProperties = new GridProperties()
             {
-                ColumnCount = 2,
+                ColumnCount = hasNames ? 2 : 1,
                 RowCount = msbp.Colors.Count
             }
         },
@@ -1380,27 +1387,47 @@ static void AddColorsSheetToSpreadsheet(ref Spreadsheet spreadsheet, MSBP msbp)
 
     foreach (var color in msbp.Colors)
     {
-        colorSheet.Data[0].RowData.Add(new RowData()
+        if (hasNames)
         {
-            Values = new List<CellData>()
+            colorSheet.Data[0].RowData.Add(new RowData()
             {
-                new CellData()
+                Values = new List<CellData>()
                 {
-                    UserEnteredValue = new ExtendedValue()
+                    new CellData()
                     {
-                        StringValue = color.Key
+                        UserEnteredValue = new ExtendedValue()
+                        {
+                            StringValue = color.Key
+                        },
+                        UserEnteredFormat = CellColorFromMsbpColor(color.Value)
                     },
-                    UserEnteredFormat = CellColorFromMsbpColor(color.Value)
-                },
-                new CellData()
-                {
-                    UserEnteredValue = new ExtendedValue()
+                    new CellData()
                     {
-                        StringValue = GeneralUtils.ColorToString(color.Value)
+                        UserEnteredValue = new ExtendedValue()
+                        {
+                            StringValue = GeneralUtils.ColorToString(color.Value)
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
+        else
+        {
+            colorSheet.Data[0].RowData.Add(new RowData()
+            {
+                Values = new List<CellData>()
+                {
+                    new CellData()
+                    {
+                        UserEnteredValue = new ExtendedValue()
+                        {
+                            StringValue = GeneralUtils.ColorToString(color.Value)
+                        },
+                        UserEnteredFormat = CellColorFromMsbpColor(color.Value)
+                    }
+                }
+            });
+        }
     }
     
     spreadsheet.Sheets.Insert(0, colorSheet);
