@@ -12,8 +12,6 @@ using Msbt2Sheets.Sheets;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-BitConverter.ToUInt32(new byte[] {0, 0, 0, 1});
-
 string credPath = Environment.CurrentDirectory + "/data/credentials.txt";
 ConsoleUtils.CheckFile(credPath);
 
@@ -31,9 +29,6 @@ foreach (string s in File.ReadAllLines(credPath))
 
 UserCredential credential = GoogleAuth.Login(googleClientId, googleClientSecret, scopes);
 GoogleSheetsManager sheetsManager = new GoogleSheetsManager(credential);
-//Spreadsheet spreadsheet = sheetsManager.GetSpreadSheet("1JkQJUkN3zgfn1FczgZepGnbcyfiWsibKZN79xorPlSo");
-
-//Console.WriteLine("asd");
 
 static Dictionary<string, string> ParseOptions()
 {
@@ -76,9 +71,8 @@ while (true)
             ConsoleUtils.Exit();
             break;
         case "2":
-            //do other thing
-            break;
-        default:
+            SheetsToMsbt.Create(sheetsManager);
+            ConsoleUtils.Exit();
             break;
     }
 }

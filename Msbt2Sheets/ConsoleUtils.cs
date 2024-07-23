@@ -29,4 +29,31 @@ public class ConsoleUtils
         Console.ReadKey();
         Environment.Exit(0);
     }
+
+    public static void WriteColored(string str, ConsoleColor highlightColor)
+    {
+        ConsoleColor baseColor = Console.ForegroundColor;
+        string[] parts = str.Split('|');
+        for (int i = 0; i < parts.Length; i++)
+        {
+            string part = parts[i];
+            if (i % 2 == 0)
+            {
+                Console.ForegroundColor = baseColor;
+                Console.Write(part);
+            }
+            else
+            {
+                Console.ForegroundColor = highlightColor;
+                Console.Write(part);
+            }
+        }
+        Console.ForegroundColor = baseColor;
+    }
+
+    public static void WriteLineColored(string str, ConsoleColor highlightColor)
+    {
+        WriteColored(str, highlightColor);
+        Console.WriteLine();
+    }
 }
