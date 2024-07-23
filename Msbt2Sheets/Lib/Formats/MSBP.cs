@@ -187,6 +187,11 @@ public class MSBP : GeneralFile
         {
             SourceFileNames = cti1.FileNames;
         }
+
+        if (TagGroups.Count == 0)
+        {
+            TagGroups = BaseMSBP.TagGroups;
+        }
     }
 
     internal class CLR1

@@ -71,4 +71,15 @@ public class GeneralUtils
         str = str.Replace("\"", "\\\"");
         return '"' + str + '"';
     }
+
+    public static string BytesToEscapeSequences(List<byte> bytes)
+    {
+        string str = "";
+        foreach (var b in bytes)
+        {
+            str += $"\\x{BitConverter.ToString(new[]{b})}";
+        }
+
+        return str;
+    }
 }

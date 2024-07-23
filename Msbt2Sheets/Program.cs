@@ -747,11 +747,6 @@ static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> s
                 });
             }
 
-            if (msbt.FileName == "Client/System/KnowledgeHead/KH_EUen")
-            {
-                Console.WriteLine("");
-            }
-
             CellData attributesCell = new CellData();
             if (msbt.HasATR1 || msbt.HasTSY1)
             {

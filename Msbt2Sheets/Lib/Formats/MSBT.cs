@@ -444,6 +444,12 @@ public class MSBT : GeneralFile
             
             long startPosition = reader.Position;
             uint messageCount = reader.ReadUInt32();
+            List<uint> stringOffsets = new();
+
+            for (uint i = 0; i < messageCount; i++)
+            {
+                stringOffsets.Add(reader.ReadUInt32());
+            }
 
             for (uint i = 0; i < messageCount; i++)
             {
@@ -471,35 +477,83 @@ public class MSBT : GeneralFile
                         //throw new InvalidDataException("Numbers of TSY1 and TXT2 entries don't match!");
                     }
                 }
-
-                uint stringOffset = reader.ReadUInt32();
-                long nextOffsetPosition = reader.Position;
                 
-                reader.JumpTo(startPosition + stringOffset);
+                reader.JumpTo(startPosition + stringOffsets[(int)i]);
 
                 bool reachedEnd = false;
+                
+                long nextStringPosition = i + 1 < messageCount ?
+                        startPosition + stringOffsets[(int)i + 1] :
+                        FindPosOfEndFileOrAb(reader, startPosition + stringOffsets[(int)i]);
+                    
                 StringBuilder messageString = new();
 
-                while (!reachedEnd)
+                while (!reachedEnd && reader.Position < nextStringPosition)
                 {
                     short character = reader.ReadInt16();
                     string tagOrigin = $"{fileName}@{lbl1.Labels[Messages.Count]}";
+                    List<byte> buffer = new List<byte>();
                     switch (character)
                     {
                         case 0x0E:
-                            ushort tagGroup = reader.ReadUInt16();
-                            ushort tagType = reader.ReadUInt16();
-                            ushort argumentsLength = reader.ReadUInt16();
-                            byte[] rawTagParameters = reader.ReadBytes(argumentsLength);
-
+                            buffer.AddRange(new byte[]{0x0, 0xE});
+                            ushort tagGroup;
+                            ushort tagType;
+                            ushort argumentsLength;
+                            byte[] rawTagParameters;
+                            
+                            try
+                            {
+                                if (reader.Position >= nextStringPosition) throw new InvalidDataException();
+                                buffer.AddRange(reader.PeekBytes(2));
+                                tagGroup = reader.ReadUInt16();
+                                
+                                if (reader.Position >= nextStringPosition) throw new InvalidDataException();
+                                buffer.AddRange(reader.PeekBytes(2));
+                                tagType = reader.ReadUInt16();
+                                
+                                if (reader.Position >= nextStringPosition) throw new InvalidDataException();
+                                buffer.AddRange(reader.PeekBytes(2));
+                                argumentsLength = reader.ReadUInt16();
+                                
+                                if (reader.Position + argumentsLength > nextStringPosition)
+                                {
+                                    buffer.AddRange(reader.PeekBytes((int)(nextStringPosition - reader.Position)));
+                                    throw new InvalidDataException();
+                                }
+                                rawTagParameters = reader.ReadBytes(argumentsLength);
+                            }
+                            catch (Exception e) when (e is InvalidDataException)
+                            {
+                                messageString.Append(GeneralUtils.BytesToEscapeSequences(buffer));
+                                break;
+                            }
+                            
                             Tag tag = new(tagGroup, tagType, rawTagParameters, false);
 
                             messageString.Append(tag.Stringify(options, tagOrigin, encoding, msbp));
                             break;
                         
                         case 0x0F:
-                            ushort tagEndGroup = reader.ReadUInt16();
-                            ushort tagEndType = reader.ReadUInt16();
+                            buffer.AddRange(new byte[]{0x0, 0xF});
+                            ushort tagEndGroup;
+                            ushort tagEndType;
+
+                            try
+                            {
+                                if (reader.Position >= nextStringPosition) throw new InvalidDataException();
+                                buffer.AddRange(reader.PeekBytes(2));
+                                tagEndGroup = reader.ReadUInt16();
+                                
+                                if (reader.Position >= nextStringPosition) throw new InvalidDataException();
+                                buffer.AddRange(reader.PeekBytes(2));
+                                tagEndType = reader.ReadUInt16();
+                            }
+                            catch (Exception e) when (e is InvalidDataException)
+                            {
+                                messageString.Append(GeneralUtils.BytesToEscapeSequences(buffer));
+                                break;
+                            }
 
                             Tag tagEnd = new(tagEndGroup, tagEndType, new byte[0], true);
 
@@ -533,8 +587,25 @@ public class MSBT : GeneralFile
 
                 message.Text = messageString.ToString();
                 Messages.Add(message);
-                reader.JumpTo(nextOffsetPosition);
             }
+        }
+
+        private static long FindPosOfEndFileOrAb(FileReader reader, long startPos)
+        {
+            long prevPos = reader.Position;
+            
+            while (!reader.AtEndOfStream)
+            {
+                if (reader.ReadByte() == 0xAB)
+                {
+                    break;
+                }
+            }
+
+            long pos = reader.Position;
+            reader.Position = prevPos;
+
+            return pos;
         }
 
         public static void Write(FileWriter writer, Message[] messages, Encoding encoding, MSBP? msbp = null)

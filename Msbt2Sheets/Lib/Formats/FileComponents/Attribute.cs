@@ -35,6 +35,17 @@ public class MessageAttribute
             return list;
         }
 
+        if (!msbp.HasATI2)
+        {
+            list.Add($"Attributes: {BitConverter.ToString(ByteData)}");
+            if (StringData != null)
+            {
+                list.Add($"StringAttribute: {GeneralUtils.AddQuotesToString(StringData)}");
+            }
+
+            return list;
+        }
+
         try
         {
             using (var reader = new BinaryReader(new MemoryStream(ByteData)))

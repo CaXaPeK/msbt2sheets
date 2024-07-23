@@ -27,6 +27,16 @@ public class FileReader : IDisposable
         get => _reader.BaseStream.Position;
         set => _reader.BaseStream.Position = value;
     }
+
+    public long Length
+    {
+        get => _reader.BaseStream.Length;
+    }
+
+    public bool AtEndOfStream
+    {
+        get => Position == Length;
+    }
     
     public Endianness Endianness { get; set; }
 
@@ -53,6 +63,14 @@ public class FileReader : IDisposable
     public byte[] ReadBytes(int length)
     {
         return ReadBytes(length, length);
+    }
+    
+    public byte[] PeekBytes(int length)
+    {
+        long startPos = Position;
+        byte[] bytes = ReadBytes(length, length);
+        Position = startPos;
+        return bytes;
     }
     
     public byte ReadByte(int length = 1)
@@ -100,11 +118,6 @@ public class FileReader : IDisposable
 
     public string ReadTerminatedString(Encoding encoding, int maxLength = -1)
     {
-        if (encoding == Encoding.Unicode)
-        {
-            Console.WriteLine("");
-        }
-        
         List<byte> bytes = new(maxLength > 0 ? maxLength : 256);
         int charLength = encoding.GetByteCount("\0");
         while (true)
