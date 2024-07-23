@@ -97,6 +97,17 @@ public class Tag
                                     return $"<System.Color {colorName}>";
                                 }
                             }
+                            else
+                            {
+                                if (shortenTags)
+                                {
+                                    return $"<Color {colorId}>";
+                                }
+                                else
+                                {
+                                    return $"<System.Color {colorId}>";
+                                }
+                            }
                         }
                         
                         var colorChannels = RawParameterToList(type, encoding, msbp);
@@ -186,10 +197,10 @@ public class Tag
                     }
                     catch
                     {
-                        /*if (!isBaseMsbp)
+                        if (!isBaseMsbp)
                         {
                             Console.WriteLine($"Warning: Couldn't humanify the tag {Stringify(options, tagOrigin, encoding)} on {tagOrigin}.");
-                        }*/
+                        }
 
                         try
                         {
