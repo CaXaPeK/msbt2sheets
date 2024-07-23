@@ -20,7 +20,7 @@ public class Tag
         IsTagEnd = isTagEnd;
     }
 
-    public string Stringify(ParsingOptions options, string tagOrigin, Encoding encoding, MSBP? msbp = null, bool isBaseMsbp = false)
+    public string Stringify(ParsingOptions options, string tagOrigin, Encoding encoding, MSBP? msbp = null, bool isBaseMsbp = false, bool parseCd = false)
     {
         if (msbp == null)
         {
@@ -178,29 +178,34 @@ public class Tag
             }
             catch
             {
-                if (!isBaseMsbp)
+                if (parseCd == false)
                 {
-                    string unformattedTag;
-                    if (IsTagEnd)
+                    try
                     {
-                        unformattedTag = $"</{Group}.{Type}>";
+                        return Stringify(options, tagOrigin, encoding, msbp, false, true);
                     }
-                    else
+                    catch
                     {
-                        if (RawParameters.Length == 0)
+                        /*if (!isBaseMsbp)
                         {
-                            unformattedTag = $"<{Group}.{Type}>";
-                        }
-                        else
-                        {
-                            unformattedTag = $"<{Group}.{Type}:{BitConverter.ToString(RawParameters)}>";
-                        }
-                    }
+                            Console.WriteLine($"Warning: Couldn't humanify the tag {Stringify(options, tagOrigin, encoding)} on {tagOrigin}.");
+                        }*/
 
-                    //Console.WriteLine($"Warning: Couldn't humanify the tag {unformattedTag} on {tagOrigin}.");
+                        try
+                        {
+                            return Stringify(options, tagOrigin, encoding);
+                        }
+                        catch
+                        {
+                            throw new InvalidDataException($"Couldn't parse a tag on {tagOrigin} at all!");
+                        }
+                        
+                    }
                 }
-                
-                return Stringify(options, tagOrigin, encoding);
+                else
+                {
+                    throw new InvalidDataException();
+                }
             }
         }
     }
@@ -232,7 +237,7 @@ public class Tag
         return true;
     }
 
-    private List<Object> RawParameterToList(TagType tag, Encoding encoding, MSBP msbp)
+    private List<Object> RawParameterToList(TagType tag, Encoding encoding, MSBP msbp, bool parseCd = false)
     {
         List<Object> list = new();
 
@@ -262,7 +267,7 @@ public class Tag
                 break;
             }
 
-            if (RawParameters[position] == 0xCD)
+            if (RawParameters[position] == 0xCD && parseCd)
             {
                 list.Add("CD");
                 position++;
@@ -376,19 +381,19 @@ public class Tag
         return list;
     }
 
-    private string RawParametersToString(TagType tag, MSBP msbp, Encoding encoding, bool shorten = false)
+    private string RawParametersToString(TagType tag, MSBP msbp, Encoding encoding, bool shorten = false, bool parseCd = false)
     {
         string result = "";
 
-        var parameters = RawParameterToList(tag, encoding, msbp);
+        var parameters = RawParameterToList(tag, encoding, msbp, parseCd);
 
         for (int i = 0; i < parameters.Count; i++)
         {
             if (!shorten)
             {
-                if (parameters[i].ToString() == "CD")
+                if (parameters[i].ToString() == "CD" && parseCd)
                 {
-                    result += $" bytes={parameters[i]}";
+                    result += $" bytes=CD";
                 }
                 else
                 {
