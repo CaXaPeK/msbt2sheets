@@ -134,4 +134,12 @@ public class AttributeInfo
         Offset = offset;
         List = list;
     }
+    
+    public AttributeInfo(string name, ParamType type, uint offset, List<string> list)
+    {
+        Name = name;
+        Type = type;
+        Offset = offset;
+        List = list;
+    }
 }
