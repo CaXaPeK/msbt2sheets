@@ -19,4 +19,13 @@ public class Style
         FontId = fontId;
         BaseColorId = baseColorId;
     }
+
+    public Style(string name, int regionWidth, int lineCount, int fontId, int baseColorId)
+    {
+        Name = name;
+        RegionWidth = regionWidth;
+        LineCount = lineCount;
+        FontId = fontId;
+        BaseColorId = baseColorId;
+    }
 }
