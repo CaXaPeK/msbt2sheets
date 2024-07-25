@@ -29,6 +29,13 @@ public class ConsoleUtils
         Console.ReadKey();
         Environment.Exit(0);
     }
+    
+    public static void Exit(string message)
+    {
+        Console.WriteLine(message);
+        Console.ReadKey();
+        Environment.Exit(0);
+    }
 
     public static void WriteColored(string str, ConsoleColor highlightColor)
     {

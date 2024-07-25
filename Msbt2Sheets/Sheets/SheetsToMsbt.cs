@@ -31,6 +31,8 @@ public class SheetsToMsbt
         ParsingOptions options = ObtainOptions(spreadsheet, sheets);
 
         MSBP msbp = ObtainMsbp(spreadsheet, sheets);
+
+        List<int> langIds = AskLanguageNames(spreadsheet, sheets);
         
         ConsoleUtils.Exit();
     }
@@ -307,5 +309,69 @@ public class SheetsToMsbt
         {
             strings.Add("");
         }
+    }
+
+    static List<int> AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
+    {
+        var msbtSheet = spreadsheet.Sheets.FirstOrDefault(x => !x.Properties.Title.StartsWith('#'));
+        if (msbtSheet == null)
+        {
+            ConsoleUtils.Exit("Your spreadsheet doesn't contain sheets with messages.");
+        }
+        var msbtSheetId = spreadsheet.Sheets.IndexOf(msbtSheet);
+
+        List<string> headerRow = sheets[msbtSheetId][0];
+        List<string> languageNames = new();
+        foreach (var cell in headerRow)
+        {
+            if (cell != "Labels" && cell != "Attributes" && !cell.EndsWith('%'))
+            {
+                languageNames.Add(cell);
+            }
+        }
+
+        List<string> wantedLanguageNames = new();
+        while (true)
+        {
+            Console.Clear();
+
+            Console.WriteLine("The spreadsheet contains the following languages:");
+            for (int i = 0; i < languageNames.Count; i++)
+            {
+                string langName = languageNames[i];
+                Console.WriteLine($"{i + 1}: {langName}");
+            }
+
+            Console.WriteLine("\nEnter which languages do you want to export (eg. 1 2 9). Type nothing if you want all.");
+            var answer = Console.ReadLine();
+            if (answer == "")
+            {
+                wantedLanguageNames = languageNames;
+                break;
+            }
+            var newIds = answer.Trim(' ').Split(' ');
+
+            foreach (var id in newIds)
+            {
+                int intId = Convert.ToInt32(id) - 1;
+                if (intId >= languageNames.Count)
+                {
+                    Console.Clear();
+                    Console.WriteLine($"-Error-\nThere are no languages with ID {intId + 1}.");
+                    Console.ReadLine();
+                    continue;
+                }
+
+                wantedLanguageNames.Add(languageNames[intId]);
+            }
+        }
+
+        List<int> wantedLanguageIds = new();
+        foreach (var name in wantedLanguageNames)
+        {
+            wantedLanguageIds.Add(headerRow.IndexOf(name));
+        }
+
+        return wantedLanguageIds;
     }
 }
