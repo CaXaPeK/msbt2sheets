@@ -79,17 +79,15 @@ public class SheetsToMsbt
     
     static int IndexOfSheetByName(Spreadsheet spreadsheet, string sheetName)
     {
-        int sheetId = -1;
         for (int i = 0; i < spreadsheet.Sheets.Count; i++)
         {
             if (spreadsheet.Sheets[i].Properties.Title == sheetName)
             {
-                sheetId = i;
-                break;
+                return i;
             }
         }
 
-        return sheetId;
+        return -1;
     }
 
     static MSBP ObtainMsbp(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
@@ -99,6 +97,7 @@ public class SheetsToMsbt
         ObtainMsbpColors(spreadsheet, sheets, msbp);
         ObtainMsbpStyles(spreadsheet, sheets, msbp);
         ObtainMsbpAttributes(spreadsheet, sheets, msbp);
+        ObtainMsbpTags(spreadsheet, sheets, msbp);
 
         return msbp;
     }
@@ -247,6 +246,66 @@ public class SheetsToMsbt
                 return ParamType.List;
             default:
                 throw new InvalidDataException($"Can't convert an unknown parameter type {type}.");
+        }
+    }
+
+    static void ObtainMsbpTags(Spreadsheet spreadsheet, List<List<List<string>>> sheets, MSBP msbp)
+    {
+        int tagSheetId = IndexOfSheetByName(spreadsheet, "#Tags");
+        if (tagSheetId != -1)
+        {
+            msbp.HasTGG2 = true;
+            msbp.HasTAG2 = true;
+            msbp.HasTGP2 = true;
+            msbp.HasTGL2 = true;
+            var rows = sheets[tagSheetId];
+
+            for (int i = 1; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                FillWithEmpty(row, 5);
+                
+                if (row[0] != "")
+                {
+                    var groupId = Convert.ToUInt16(row[0].Split('.')[0]);
+                    var groupName = row[0].Substring(row[0].IndexOf(' '));
+                    msbp.TagGroups.Add(new TagGroup()
+                    {
+                        Id = groupId,
+                        Name = groupName
+                    });
+                }
+
+                if (row[1] != "")
+                {
+                    msbp.TagGroups.Last().Tags.Add(new TagType()
+                    {
+                        Name = row[1]
+                    });
+                }
+
+                if (row[2] != "")
+                {
+                    msbp.TagGroups.Last().Tags.Last().Parameters.Add(new TagParameter()
+                    {
+                        Name = row[2],
+                        Type = StringToParamType(row[3])
+                    });
+                }
+                
+                if (row[4] != "")
+                {
+                    msbp.TagGroups.Last().Tags.Last().Parameters.Last().List.Add(row[3]);
+                }
+            }
+        }
+    }
+
+    static void FillWithEmpty(List<string> strings, int itemCount)
+    {
+        for (int i = strings.Count; i < itemCount; i++)
+        {
+            strings.Add("");
         }
     }
 }
