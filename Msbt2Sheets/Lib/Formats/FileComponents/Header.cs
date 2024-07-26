@@ -9,8 +9,8 @@ public class Header
     public Endianness Endianness { get; set; }
     public EncodingType EncodingType { get; set; }
     public byte Version { get; set; }
-    public ushort SectionCount { get; set; }
-    public uint FileSize { get; set; }
+    public ushort SectionCount = 0;
+    public uint FileSize = 0;
 
     public Encoding Encoding
     {

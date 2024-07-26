@@ -389,8 +389,8 @@ public class SheetsToMsbt
             
             var internalDataRowId = sheets[internalSheetId].FindIndex(x => x[0] == sheetName);
             var internalDataRow = sheets[internalSheetId][internalDataRowId];
-            var slotCount = Convert.ToInt32(internalDataRow[1]);
-            var version = Convert.ToInt32(internalDataRow[2]);
+            var slotCount = Convert.ToUInt32(internalDataRow[1]);
+            var version = Convert.ToByte(internalDataRow[2]);
             var byteOrder = internalDataRow[3] == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
             Enum.TryParse(internalDataRow[4], out EncodingType encoding);
             var ato1 = new List<int>();
@@ -425,10 +425,28 @@ public class SheetsToMsbt
                     hasTsy1 = true;
                 }
 
-                var messages = new List<Message>();
+                bool noFileFlag = false;
+                var messages = new Dictionary<object, Message>();
                 for (int i = 1; i < sheetGrid.Count; i++)
                 {
                     var messageRow = sheetGrid[i];
+
+                    var label = messageRow[0];
+                    var text = messageRow[langColumnId];
+                    
+                    if (text == "{{no-translation}}")
+                    {
+                        text = messageRow[1];
+                    }
+                    if (text == "{{no-message}}")
+                    {
+                        continue;
+                    }
+                    if (text == "{{no-file}}")
+                    {
+                        noFileFlag = true;
+                        break;
+                    }
                     
                     var attributeByteData = new byte[]{};
                     var attributeString = "";
@@ -478,8 +496,54 @@ public class SheetsToMsbt
                         }
                     }
                     
-                    
+                    messages.Add(label, new Message
+                    {
+                        Text = text,
+                        StyleId = styleId,
+                        Attribute = new MessageAttribute
+                        {
+                            ByteData = attributeByteData,
+                            StringData = attributeString
+                        }
+                    });
                 }
+
+                uint bytesPerAttribute = 0;
+                if (messages.Count != 0)
+                {
+                    bytesPerAttribute = (uint)messages.First().Value.Attribute.ByteData.Length;
+                }
+                foreach (var message in messages)
+                {
+                    int curLength = message.Value.Attribute.ByteData.Length;
+                    if (curLength != bytesPerAttribute)
+                    {
+                        throw new InvalidDataException(
+                            $"Atrribute lengths of messages \"{messages.First().Key}\" and \"{message.Key}\" mismatch ({bytesPerAttribute} and {curLength})");
+                    }
+                }
+                
+                langs[langNames.IndexOf(langName)].Add(new MSBT
+                {
+                    FileName = sheetName,
+                    Language = langName,
+                    Header = new Header()
+                    {
+                        FileType = FileType.MSBT,
+                        Version = version,
+                        Endianness = byteOrder,
+                        EncodingType = encoding
+                    },
+                    LabelSlotCount = slotCount,
+                    BytesPerAttribute = bytesPerAttribute,
+                    UsesAttributeStrings = usesAttributeString,
+                    ATO1Numbers = ato1,
+                    HasLBL1 = true,
+                    HasATR1 = hasAtr1,
+                    HasTSY1 = hasTsy1,
+                    HasATO1 = hasAto1,
+                    Messages = messages
+                });
             }
         }
 
