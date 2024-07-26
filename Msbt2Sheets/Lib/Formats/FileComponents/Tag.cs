@@ -634,7 +634,7 @@ public class Tag
     {
         List<byte> bytes = new();
 
-        for(int i = 0; i < values.Count; i++)
+        for (int i = 0; i < values.Count; i++)
         {
             switch (parameters[i].Type)
             {
@@ -664,7 +664,6 @@ public class Tag
                     break;
                 case ParamType.String:
                     bytes.AddRange(BitConverter.GetBytes((ushort)(values[i].Length * 2)));
-                    //bytes.AddRange(msbp.Header.Encoding.GetBytes(values[i]));
                     bytes.AddRange(Encoding.Unicode.GetBytes(values[i]));
                     break;
                 case ParamType.List:

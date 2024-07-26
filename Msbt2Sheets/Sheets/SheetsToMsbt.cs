@@ -1,4 +1,5 @@
-﻿using Google.Apis.Sheets.v4.Data;
+﻿using System.Text;
+using Google.Apis.Sheets.v4.Data;
 using Msbt2Sheets.Lib.Formats;
 using Msbt2Sheets.Lib.Formats.FileComponents;
 using Msbt2Sheets.Lib.Utils;
@@ -32,7 +33,9 @@ public class SheetsToMsbt
 
         MSBP msbp = ObtainMsbp(spreadsheet, sheets);
 
-        List<int> langIds = AskLanguageNames(spreadsheet, sheets);
+        List<string> langNames = AskLanguageNames(spreadsheet, sheets);
+
+        List<List<MSBT>> langs = ObtainMsbts(spreadsheet, sheets, options, msbp, langNames);
         
         ConsoleUtils.Exit();
     }
@@ -61,7 +64,7 @@ public class SheetsToMsbt
 
     static ParsingOptions ObtainOptions(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
     {
-        int sheetId = IndexOfSheetByName(spreadsheet, "#Settings");
+        int sheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Settings");
         ParsingOptions options = new();
         
         foreach (var row in sheets[sheetId])
@@ -78,19 +81,6 @@ public class SheetsToMsbt
 
         return options;
     }
-    
-    static int IndexOfSheetByName(Spreadsheet spreadsheet, string sheetName)
-    {
-        for (int i = 0; i < spreadsheet.Sheets.Count; i++)
-        {
-            if (spreadsheet.Sheets[i].Properties.Title == sheetName)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
 
     static MSBP ObtainMsbp(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
     {
@@ -106,7 +96,7 @@ public class SheetsToMsbt
 
     static void ObtainMsbpColors(Spreadsheet spreadsheet, List<List<List<string>>> sheets, MSBP msbp)
     {
-        int colorSheetId = IndexOfSheetByName(spreadsheet, "#BaseColors");
+        int colorSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#BaseColors");
         if (colorSheetId != -1)
         {
             msbp.HasCLR1 = true;
@@ -140,7 +130,7 @@ public class SheetsToMsbt
 
     static void ObtainMsbpStyles(Spreadsheet spreadsheet, List<List<List<string>>> sheets, MSBP msbp)
     {
-        int styleSheetId = IndexOfSheetByName(spreadsheet, "#Styles");
+        int styleSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Styles");
         if (styleSheetId != -1)
         {
             msbp.HasSYL3 = true;
@@ -180,7 +170,7 @@ public class SheetsToMsbt
 
     static void ObtainMsbpAttributes(Spreadsheet spreadsheet, List<List<List<string>>> sheets, MSBP msbp)
     {
-        int attrSheetId = IndexOfSheetByName(spreadsheet, "#Attributes");
+        int attrSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Attributes");
         if (attrSheetId != -1)
         {
             msbp.HasATI2 = true;
@@ -253,7 +243,7 @@ public class SheetsToMsbt
 
     static void ObtainMsbpTags(Spreadsheet spreadsheet, List<List<List<string>>> sheets, MSBP msbp)
     {
-        int tagSheetId = IndexOfSheetByName(spreadsheet, "#Tags");
+        int tagSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Tags");
         if (tagSheetId != -1)
         {
             msbp.HasTGG2 = true;
@@ -311,14 +301,13 @@ public class SheetsToMsbt
         }
     }
 
-    static List<int> AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
+    static List<string> AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
     {
-        var msbtSheet = spreadsheet.Sheets.FirstOrDefault(x => !x.Properties.Title.StartsWith('#'));
-        if (msbtSheet == null)
+        int msbtSheetId = spreadsheet.Sheets.ToList().FindIndex(x => !x.Properties.Title.StartsWith('#'));
+        if (msbtSheetId == -1)
         {
             ConsoleUtils.Exit("Your spreadsheet doesn't contain sheets with messages.");
         }
-        var msbtSheetId = spreadsheet.Sheets.IndexOf(msbtSheet);
 
         List<string> headerRow = sheets[msbtSheetId][0];
         List<string> languageNames = new();
@@ -372,6 +361,223 @@ public class SheetsToMsbt
             wantedLanguageIds.Add(headerRow.IndexOf(name));
         }
 
-        return wantedLanguageIds;
+        return wantedLanguageNames;
+    }
+
+    static List<List<MSBT>> ObtainMsbts(Spreadsheet spreadsheet, List<List<List<string>>> sheets,
+        ParsingOptions options, MSBP msbp, List<string> langNames)
+    {
+        List<List<MSBT>> langs = new();
+        for (int i = 0; i < langNames.Count; i++)
+        {
+            langs.Add(new());
+        }
+        
+        var msbtSheetIds = GetMsbtSheetIds(spreadsheet, sheets);
+        foreach (var msbtSheetId in msbtSheetIds)
+        {
+            var sheet = spreadsheet.Sheets[msbtSheetId];
+            var sheetName = sheet.Properties.Title;
+            var sheetGrid = sheets[msbtSheetId];
+            var headerRow = sheetGrid[0];
+
+            var internalSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#InternalData");
+            if (internalSheetId == -1)
+            {
+                ConsoleUtils.Exit("Your spreadsheet doesn't contain an #InternalData sheet.");
+            }
+            
+            var internalDataRowId = sheets[internalSheetId].FindIndex(x => x[0] == sheetName);
+            var internalDataRow = sheets[internalSheetId][internalDataRowId];
+            var slotCount = Convert.ToInt32(internalDataRow[1]);
+            var version = Convert.ToInt32(internalDataRow[2]);
+            var byteOrder = internalDataRow[3] == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
+            Enum.TryParse(internalDataRow[4], out EncodingType encoding);
+            var ato1 = new List<int>();
+            var hasAto1 = spreadsheet.Sheets[internalSheetId].Properties.GridProperties.ColumnCount == 6;
+            if (hasAto1)
+            {
+                ato1 = CommaSpaceNumbersToList(internalDataRow[5]);
+            }
+            
+            foreach (var langName in langNames)
+            {
+                var langColumnId = headerRow.IndexOf(langName);
+                
+                var hasAtr1 = false;
+                var hasTsy1 = false;
+                var usesAttributeString = false;
+                var attributeColumnId = -1;
+                
+                if (headerRow.Contains("Attributes"))
+                {
+                    attributeColumnId = headerRow.IndexOf("Attributes");
+                }
+
+                if (headerRow.Count(x => x.EndsWith('%')) > 0)
+                {
+                    attributeColumnId = langColumnId + 1;
+                }
+
+                if (sheet.Properties.GridProperties.RowCount == 1 && attributeColumnId != -1)
+                {
+                    hasAtr1 = true;
+                    hasTsy1 = true;
+                }
+
+                var messages = new List<Message>();
+                for (int i = 1; i < sheetGrid.Count; i++)
+                {
+                    var messageRow = sheetGrid[i];
+                    
+                    var attributeByteData = new byte[]{};
+                    var attributeString = "";
+                    var styleId = -1;
+                    
+                    if (attributeColumnId != -1)
+                    {
+                        var attributeCell = messageRow[attributeColumnId];
+                        var attributeDict = CellToDictionary(attributeCell);
+                        
+                        if (attributeDict.ContainsKey("Style"))
+                        {
+                            hasTsy1 = true;
+                            var styleName = attributeDict["Style"];
+                            var style = msbp.Styles.FirstOrDefault(x => x.Name == styleName);
+                            if (style == null)
+                            {
+                                styleId = Convert.ToInt32(styleName);
+                            }
+                            else
+                            {
+                                styleId = msbp.Styles.IndexOf(style);
+                            }
+
+                            attributeDict.Remove("Style");
+                        }
+
+                        if (attributeDict.Count > 0)
+                        {
+                            hasAtr1 = true;
+
+                            if (attributeDict.ContainsKey("StringAttribute"))
+                            {
+                                usesAttributeString = true;
+                                attributeString = attributeDict["StringAttribute"];
+                                attributeDict.Remove("StringAttribute");
+                            }
+                            
+                            if (attributeDict.Count == 1 && attributeDict.ContainsKey("Attributes"))
+                            {
+                                attributeByteData = Convert.FromHexString(attributeDict["Attributes"].Replace("-", ""));
+                                attributeDict.Remove("Attributes");
+                            }
+
+                            attributeByteData = MessageAttribute.KeysAndValuesToBytes(attributeDict.Keys.ToList(),
+                                attributeDict.Values.ToList(), msbp);
+                        }
+                    }
+                    
+                    
+                }
+            }
+        }
+
+        return langs;
+    }
+    
+    static List<int> GetMsbtSheetIds(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
+    {
+        List<int> ids = new();
+        int counter = 0;
+        foreach (var sheet in spreadsheet.Sheets)
+        {
+            if (!sheet.Properties.Title.StartsWith('#'))
+            {
+                ids.Add(counter);
+            }
+
+            counter++;
+        }
+
+        return ids;
+    }
+
+    static List<int> CommaSpaceNumbersToList(string cell)
+    {
+        return cell.Split(", ")
+            .Select(numberString => Convert.ToInt32(numberString))
+            .ToList();
+    }
+
+    static Dictionary<string, string> CellToDictionary(string cell)
+    {
+        Dictionary<string, string> dict = new();
+
+        while (cell.Length != 0)
+        {
+            string key = cell[..cell.IndexOf(':')];
+            cell = cell[(key.Length + 2)..];
+
+            string value;
+
+            if (cell[0] == '"')
+            {
+                if (cell.Count(x => x == '"') == 1)
+                {
+                    throw new InvalidDataException("Can't parse attributes: no closing quote");
+                }
+
+                value = cell[..FindFirstIndexWhereNotAfter(cell, '\\', '"')];
+                cell = cell[value.Length..];
+                value = value[1..(value.Length - 1)];
+                value = value.Replace("\\\"", "\"");
+                value = value.Replace("\\\\", "\\");
+                
+                if (cell.Count(x => x == ';') == 0)
+                {
+                    if (cell.Length == 0)
+                    {
+                        throw new InvalidDataException("Can't parse attributes: no semi-colon at the end");
+                    }
+                    else
+                    {
+                        throw new InvalidDataException("Can't parse attributes: no semi-colon after a string attribute");
+                    }
+                }
+            }
+            else
+            {
+                if (cell.Count(x => x == ';') == 0)
+                {
+                    throw new InvalidDataException("Can't parse attributes: no semi-colon at the end");
+                }
+                
+                value = cell[..cell.IndexOf(';')];
+            }
+            
+            cell = cell[1..]; //remove ; at the start
+            if (cell.Length != 0) cell = cell[1..]; //remove space at the start
+            
+            dict.Add(key, value);
+        }
+
+        return dict;
+    }
+
+    static int FindFirstIndexWhereNotAfter(string str, char first, char second)
+    {
+        for (int i = 0; i < str.Length; i++)
+        {
+            if (str[i] == second)
+            {
+                if (i == 0 || str[i - 1] != first)
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
     }
 }

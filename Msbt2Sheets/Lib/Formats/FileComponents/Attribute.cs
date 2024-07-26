@@ -115,6 +115,65 @@ public class MessageAttribute
 
         return list;
     }
+    
+    public static byte[] KeysAndValuesToBytes(List<string> keys, List<string> values, MSBP msbp)
+    {
+        List<byte> bytes = new();
+        
+        for (int i = 0; i < keys.Count; i++)
+        {
+            var attr = msbp.AttributeInfos.FirstOrDefault(x => x.Name == keys[i]);
+            if (attr == null)
+            {
+                throw new InvalidDataException($"Can't parse attributes: no attribute with name {keys[i]} on the #Attributes sheet");
+            }
+            
+            switch (attr.Type)
+            {
+                case ParamType.UInt8:
+                    bytes.Add(Convert.ToByte(values[i]));
+                    break;
+                case ParamType.UInt16:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToUInt16(values[i])));
+                    break;
+                case ParamType.UInt32:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToUInt32(values[i])));
+                    break;
+                case ParamType.Int8:
+                    bytes.Add((byte)Convert.ToSByte(values[i]));
+                    break;
+                case ParamType.Int16:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToInt16(values[i])));
+                    break;
+                case ParamType.Int32:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToInt32(values[i])));
+                    break;
+                case ParamType.Float:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToSingle(values[i])));
+                    break;
+                case ParamType.Double:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToDouble(values[i])));
+                    break;
+                case ParamType.String:
+                    bytes.AddRange(BitConverter.GetBytes(Convert.ToUInt32(values[i])));
+                    break;
+                case ParamType.List:
+                    int itemId = attr.List.IndexOf(values[i]);
+                    if (itemId == -1)
+                    {
+                        throw new InvalidDataException(
+                            $"Can't parse attributes: attribute \"{attr.Name}\" doesn't have a list item \"{values[i]}\"");
+                    }
+                    bytes.Add((byte)itemId);
+                    break;
+                default:
+                    throw new InvalidDataException(
+                        $"Can't parse attributes: attribute {attr.Name} has an invalid type of {(byte)attr.Type}");
+            }
+        }
+
+        return bytes.ToArray();
+    }
 }
 
 public class AttributeInfo
