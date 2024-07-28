@@ -248,6 +248,22 @@ public class Tag
         return true;
     }
 
+    private bool MsbpHasTag(string tagName, MSBP msbp)
+    {
+        foreach (var group in msbp.TagGroups)
+        {
+            foreach (var tag in group.Tags)
+            {
+                if (tag.Name == tagName)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private List<Object> RawParameterToList(TagType tag, Encoding encoding, MSBP msbp, bool parseCd = false)
     {
         List<Object> list = new();
@@ -420,7 +436,7 @@ public class Tag
         return result;
     }
 
-    public static void Write(FileWriter writer, string tag, MSBP? msbp = null)
+    public static byte[] Write(FileWriter writer, string tag, MSBP? msbp = null)
     {
         string unformattedTagPattern = @"<\/?\d+\.\d+(?::[0-9A-F]{2}(-[0-9A-F]{2})*)?>";
         bool unformatted = Regex.IsMatch(tag, unformattedTagPattern);
@@ -429,7 +445,7 @@ public class Tag
         {
             if (unformatted)
             {
-                WriteUnformattedTag(writer, tag);
+                return WriteUnformattedTag(writer, tag);
             }
             else
             {
@@ -437,7 +453,7 @@ public class Tag
                 {
                     throw new InvalidDataException("MSBP wasn't provided");
                 }
-                WriteFormattedTag(writer, tag, msbp);
+                return WriteFormattedTag(writer, tag, msbp);
             }
         }
         catch (Exception e)
@@ -446,22 +462,26 @@ public class Tag
         }
     }
 
-    private static void WriteUnformattedTag(FileWriter writer, string tag)
+    private static byte[] WriteUnformattedTag(FileWriter writer, string tag)
     {
+        FileWriter tagWriter = new(new MemoryStream());
         bool isTagEnd = tag[1] == '/';
         
         if (isTagEnd)
         {
             writer.WriteUInt16(0xF);
+            tagWriter.WriteUInt16(0xF);
         }
         else
         {
             writer.WriteUInt16(0xE);
+            tagWriter.WriteUInt16(0xE);
         }
         
         string groupString = isTagEnd ? tag[2..tag.IndexOf('.')] : tag[1..tag.IndexOf('.')];
         ushort group = Convert.ToUInt16(groupString);
         writer.WriteUInt16(group);
+        tagWriter.WriteUInt16(group);
 
         bool hasParameters = tag.Contains(':');
         string typeString = hasParameters
@@ -469,6 +489,7 @@ public class Tag
             : tag[(tag.IndexOf('.') + 1)..tag.IndexOf('>')];
         ushort type = Convert.ToUInt16(typeString);
         writer.WriteUInt16(type);
+        tagWriter.WriteUInt16(type);
 
         if (hasParameters)
         {
@@ -476,26 +497,35 @@ public class Tag
             byte[] parametersBytes = Convert.FromHexString(parametersString.Replace("-", ""));
             ushort parametersLength = (ushort)parametersBytes.Length;
             writer.WriteUInt16(parametersLength);
+            tagWriter.WriteUInt16(parametersLength);
             writer.WriteBytes(parametersBytes);
+            tagWriter.WriteBytes(parametersBytes);
         }
         else if (!isTagEnd)
         {
             writer.WriteUInt16(0);
+            tagWriter.WriteUInt16(0);
         }
+        
+        return ((MemoryStream)tagWriter.BaseStream).ToArray();
     }
 
-    private static void WriteFormattedTag(FileWriter writer, string tag, MSBP msbp)
+    private static byte[] WriteFormattedTag(FileWriter writer, string tag, MSBP msbp)
     {
+        FileWriter tagWriter = new(new MemoryStream());
+        string initialTag = tag;
         bool isTagEnd = tag[1] == '/';
         
         if (isTagEnd)
         {
             writer.WriteUInt16(0xF);
+            tagWriter.WriteUInt16(0xF);
             tag = tag[2..];
         }
         else
         {
             writer.WriteUInt16(0xE);
+            tagWriter.WriteUInt16(0xE);
             tag = tag[1..];
         }
 
@@ -528,10 +558,24 @@ public class Tag
             group = msbp.TagGroups.FirstOrDefault(x => x.Tags.Any(tag => tag.Name == typeName));
             if (group == null)
             {
-                throw new InvalidDataException($"Can't find groupId or tagId of {tag}!");
+                if (typeName == "p")
+                {
+                    group = msbp.TagGroups[0];
+                    type = msbp.TagGroups[0].Tags[4];
+                }
+                else
+                {
+                    throw new InvalidDataException($"Can't find groupId of {initialTag}!");
+                }
             }
-
-            type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+            else
+            {
+                type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+                if (type == null)
+                {
+                    throw new InvalidDataException($"Can't find tagId of {initialTag} in {group.Name}!");
+                }
+            }
         }
         else
         {
@@ -548,14 +592,31 @@ public class Tag
             {
                 typeName = tag[..tag.IndexOf('>')];
             }
-
+            
             type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+            if (type == null)
+            {
+                if (groupName == "System" && typeName == "p")
+                {
+                    type = msbp.TagGroups[0].Tags[4];
+                }
+                else
+                {
+                    throw new InvalidDataException($"Can't find tagId of {initialTag}!");
+                }
+            }
+            else
+            {
+                type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+            }
         }
         
         ushort groupId = (ushort)msbp.TagGroups.IndexOf(group);
         ushort typeId = (ushort)group.Tags.IndexOf(type);
         writer.WriteUInt16(groupId);
         writer.WriteUInt16(typeId);
+        tagWriter.WriteUInt16(groupId);
+        tagWriter.WriteUInt16(typeId);
 
         if (hasParameters)
         {
@@ -570,6 +631,11 @@ public class Tag
                 writer.WriteByte(color.G);
                 writer.WriteByte(color.B);
                 writer.WriteByte(color.A);
+                tagWriter.WriteUInt16(4);
+                tagWriter.WriteByte(color.R);
+                tagWriter.WriteByte(color.G);
+                tagWriter.WriteByte(color.B);
+                tagWriter.WriteByte(color.A);
             }
             else
             {
@@ -577,12 +643,17 @@ public class Tag
                 byte[] parameterBytes = ParameterValuesToByteArray(parameterValues, type.Parameters, msbp);
                 writer.WriteUInt16((ushort) parameterBytes.Length);
                 writer.WriteBytes(parameterBytes);
+                tagWriter.WriteUInt16((ushort) parameterBytes.Length);
+                tagWriter.WriteBytes(parameterBytes);
             }
         }
         else if (!isTagEnd)
         {
             writer.WriteUInt16(0);
+            tagWriter.WriteUInt16(0);
         }
+        
+        return ((MemoryStream)tagWriter.BaseStream).ToArray();
     }
 
     private static List<string> ParseParametersString(string parametersString, bool shortened = false)

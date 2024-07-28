@@ -130,7 +130,7 @@ public class MSBT : GeneralFile
         return strings;
     }
 
-    public byte[] Compile(MSBP? msbp = null)
+    public byte[] Compile(ParsingOptions options, MSBP? msbp = null)
     {
         ushort sectionCount = 0;
         FileWriter writer = new(new MemoryStream());
@@ -162,7 +162,7 @@ public class MSBT : GeneralFile
             sectionCount++;
         }
         
-        TXT2.Write(writer, Messages.Values.ToArray(), Header.Encoding, msbp);
+        TXT2.Write(writer, Messages.Values.ToArray(), Header.Encoding, options, msbp);
         sectionCount++;
         
         CalculateAndSetSectionCountAndFileSize(writer, sectionCount, (uint)writer.Position);
@@ -608,7 +608,7 @@ public class MSBT : GeneralFile
             return pos;
         }
 
-        public static void Write(FileWriter writer, Message[] messages, Encoding encoding, MSBP? msbp = null)
+        public static void Write(FileWriter writer, Message[] messages, Encoding encoding, ParsingOptions options, MSBP? msbp = null)
         {
             writer.WriteString("TXT2", Encoding.ASCII);
             long sizePosition = writer.Position;
@@ -645,7 +645,18 @@ public class MSBT : GeneralFile
                                 }
                                 tagText += text[k];
                             }
-                            Tag.Write(writer, tagText, msbp);
+                            byte[] tagBytes = Tag.Write(writer, tagText, msbp);
+                            if (options.AddLinebreaksAfterPagebreaks && tagBytes.Length == 8 && text.Length != j + 1)
+                            {
+                                if ((tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4) ||
+                                    (tagBytes[1] == 0xE && tagBytes[3] == 0x0 && tagBytes[5] == 0x4))
+                                {
+                                    if (text[j + 1] == '\n')
+                                    {
+                                        j++;
+                                    }
+                                }
+                            }
                             break;
                         default:
                             writer.WriteString(c.ToString(), encoding);

@@ -762,10 +762,20 @@ public class MsbtToSheets
                 
                 string engNewMessage = row.Values[1].UserEnteredValue.StringValue;
                 string japNewMessage = row.Values[2].UserEnteredValue.StringValue;
+                string gerNewMessage = row.Values[6].UserEnteredValue.StringValue;
+                string fraNewMessage = row.Values[7].UserEnteredValue.StringValue;
+                string itaNewMessage = row.Values[9].UserEnteredValue.StringValue;
+                string spaNewMessage = row.Values[10].UserEnteredValue.StringValue;
                 
                 Console.WriteLine($"Analysing {sheet.Properties.Title}@{label}...");
 
-                (string engOrigMessage, string japOrigMessage) = FindOrigMessages(label, sheet.Properties.Title, targetSheetNames, values);
+                var origMessages = FindOrigMessages(label, sheet.Properties.Title, targetSheetNames, values);
+                string engOrigMessage = origMessages[0];
+                string japOrigMessage = origMessages[1];
+                string gerOrigMessage = origMessages[2];
+                string fraOrigMessage = origMessages[3];
+                string itaOrigMessage = origMessages[4];
+                string spaOrigMessage = origMessages[5];
 
                 if (engOrigMessage == "{{not-found}}")
                 {
@@ -789,13 +799,61 @@ public class MsbtToSheets
                             }
                         }
                     };
+                    row.Values[6].UserEnteredFormat = new CellFormat()
+                    {
+                        BackgroundColorStyle = new ColorStyle()
+                        {
+                            RgbColor = new Color()
+                            {
+                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
+                            }
+                        }
+                    };
+                    row.Values[7].UserEnteredFormat = new CellFormat()
+                    {
+                        BackgroundColorStyle = new ColorStyle()
+                        {
+                            RgbColor = new Color()
+                            {
+                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
+                            }
+                        }
+                    };
+                    row.Values[9].UserEnteredFormat = new CellFormat()
+                    {
+                        BackgroundColorStyle = new ColorStyle()
+                        {
+                            RgbColor = new Color()
+                            {
+                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
+                            }
+                        }
+                    };
+                    row.Values[10].UserEnteredFormat = new CellFormat()
+                    {
+                        BackgroundColorStyle = new ColorStyle()
+                        {
+                            RgbColor = new Color()
+                            {
+                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
+                            }
+                        }
+                    };
                 }
                 else
                 {
                     string normalizedEngNewMessage = NormalizeMessage(engNewMessage);
                     string normalizedJapNewMessage = NormalizeMessage(japNewMessage);
+                    string normalizedGerNewMessage = NormalizeMessage(gerNewMessage);
+                    string normalizedFraNewMessage = NormalizeMessage(fraNewMessage);
+                    string normalizedItaNewMessage = NormalizeMessage(itaNewMessage);
+                    string normalizedSpaNewMessage = NormalizeMessage(spaNewMessage);
                     string normalizedEngOrigMessage = NormalizeMessage(engOrigMessage);
                     string normalizedJapOrigMessage = NormalizeMessage(japOrigMessage);
+                    string normalizedGerOrigMessage = NormalizeMessage(gerOrigMessage);
+                    string normalizedFraOrigMessage = NormalizeMessage(fraOrigMessage);
+                    string normalizedItaOrigMessage = NormalizeMessage(itaOrigMessage);
+                    string normalizedSpaOrigMessage = NormalizeMessage(spaOrigMessage);
 
                     if (normalizedEngNewMessage != normalizedEngOrigMessage)
                     {
@@ -813,6 +871,58 @@ public class MsbtToSheets
                     if (normalizedJapNewMessage != normalizedJapOrigMessage)
                     {
                         row.Values[2].UserEnteredFormat = new CellFormat()
+                        {
+                            BackgroundColorStyle = new ColorStyle()
+                            {
+                                RgbColor = new Color()
+                                {
+                                    Red = 1, Green = 0.949f, Blue = 0.8f
+                                }
+                            }
+                        };
+                    }
+                    if (normalizedGerNewMessage != normalizedGerOrigMessage)
+                    {
+                        row.Values[6].UserEnteredFormat = new CellFormat()
+                        {
+                            BackgroundColorStyle = new ColorStyle()
+                            {
+                                RgbColor = new Color()
+                                {
+                                    Red = 1, Green = 0.949f, Blue = 0.8f
+                                }
+                            }
+                        };
+                    }
+                    if (normalizedFraNewMessage != normalizedFraOrigMessage)
+                    {
+                        row.Values[7].UserEnteredFormat = new CellFormat()
+                        {
+                            BackgroundColorStyle = new ColorStyle()
+                            {
+                                RgbColor = new Color()
+                                {
+                                    Red = 1, Green = 0.949f, Blue = 0.8f
+                                }
+                            }
+                        };
+                    }
+                    if (normalizedItaNewMessage != normalizedItaOrigMessage)
+                    {
+                        row.Values[9].UserEnteredFormat = new CellFormat()
+                        {
+                            BackgroundColorStyle = new ColorStyle()
+                            {
+                                RgbColor = new Color()
+                                {
+                                    Red = 1, Green = 0.949f, Blue = 0.8f
+                                }
+                            }
+                        };
+                    }
+                    if (normalizedSpaNewMessage != normalizedSpaOrigMessage)
+                    {
+                        row.Values[10].UserEnteredFormat = new CellFormat()
                         {
                             BackgroundColorStyle = new ColorStyle()
                             {
@@ -2429,7 +2539,7 @@ public class MsbtToSheets
         return message;
     }
 
-    static (string, string) FindOrigMessages(string label, string switchSheetName, List<string> gcnSheetNames, List<ValueRange> valueRanges)
+    static List<string> FindOrigMessages(string label, string switchSheetName, List<string> gcnSheetNames, List<ValueRange> valueRanges)
     {
         for (int i = 0; i < gcnSheetNames.Count; i++)
         {
@@ -2439,7 +2549,15 @@ public class MsbtToSheets
                 {
                     if ((string)row[0] == label)
                     {
-                        return ((string)row[1], (string)row[2]);
+                        return new List<string>()
+                        {
+                            (string)row[1],
+                            (string)row[2],
+                            (string)row[3],
+                            (string)row[4],
+                            (string)row[5],
+                            (string)row[6],
+                        };
                     }
                 }
             }
@@ -2453,12 +2571,28 @@ public class MsbtToSheets
                 {
                     if ((string)row[0] == label)
                     {
-                        return ((string)row[1], (string)row[2]);
+                        return new List<string>()
+                        {
+                            (string)row[1],
+                            (string)row[2],
+                            (string)row[3],
+                            (string)row[4],
+                            (string)row[5],
+                            (string)row[6],
+                        };
                     }
                 }
             }
         }
         
-        return ("{{not-found}}", "{{not-found}}");
+        return new List<string>()
+        {
+            "{{not-found}}",
+            "{{not-found}}",
+            "{{not-found}}",
+            "{{not-found}}",
+            "{{not-found}}",
+            "{{not-found}}",
+        };
     }
 }

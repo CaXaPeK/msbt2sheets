@@ -21,7 +21,10 @@ public class ParsingOptions
     public string ColorIdentification = "By RGBA bytes";
     
     public List<string> TransLangNames = new();
+    
     public List<string> TransLangPaths = new();
+
+    public string OutputPath = "";
 
     public ParsingOptions()
     {

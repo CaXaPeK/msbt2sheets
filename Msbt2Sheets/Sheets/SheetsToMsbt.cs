@@ -36,6 +36,10 @@ public class SheetsToMsbt
         List<string> langNames = AskLanguageNames(spreadsheet, sheets);
 
         List<List<MSBT>> langs = ObtainMsbts(spreadsheet, sheets, options, msbp, langNames);
+
+        AskOutputPath(options);
+        
+        SaveMsbts(langs, msbp, options);
         
         ConsoleUtils.Exit();
     }
@@ -260,7 +264,7 @@ public class SheetsToMsbt
                 if (row[0] != "")
                 {
                     var groupId = Convert.ToUInt16(row[0].Split('.')[0]);
-                    var groupName = row[0].Substring(row[0].IndexOf(' '));
+                    var groupName = row[0].Substring(row[0].IndexOf(' ') + 1);
                     msbp.TagGroups.Add(new TagGroup()
                     {
                         Id = groupId,
@@ -353,6 +357,8 @@ public class SheetsToMsbt
 
                 wantedLanguageNames.Add(languageNames[intId]);
             }
+
+            break;
         }
 
         List<int> wantedLanguageIds = new();
@@ -367,6 +373,8 @@ public class SheetsToMsbt
     static List<List<MSBT>> ObtainMsbts(Spreadsheet spreadsheet, List<List<List<string>>> sheets,
         ParsingOptions options, MSBP msbp, List<string> langNames)
     {
+        Console.Clear();
+        
         List<List<MSBT>> langs = new();
         for (int i = 0; i < langNames.Count; i++)
         {
@@ -402,6 +410,7 @@ public class SheetsToMsbt
             
             foreach (var langName in langNames)
             {
+                Console.WriteLine($"Obtaining {sheetName}.msbt ({langName})...");
                 var langColumnId = headerRow.IndexOf(langName);
                 
                 var hasAtr1 = false;
@@ -472,6 +481,15 @@ public class SheetsToMsbt
                             }
 
                             attributeDict.Remove("Style");
+                        }
+                        
+                        if (attributeDict.ContainsKey("StyleId"))
+                        {
+                            hasTsy1 = true;
+                            var styleName = attributeDict["StyleId"];
+                            styleId = Convert.ToInt32(styleName);
+
+                            attributeDict.Remove("StyleId");
                         }
 
                         if (attributeDict.Count > 0)
@@ -618,6 +636,7 @@ public class SheetsToMsbt
                 }
                 
                 value = cell[..cell.IndexOf(';')];
+                cell = cell[value.Length..];
             }
             
             cell = cell[1..]; //remove ; at the start
@@ -643,5 +662,33 @@ public class SheetsToMsbt
         }
 
         return -1;
+    }
+
+    static void AskOutputPath(ParsingOptions options)
+    {
+        Console.Clear();
+        Console.WriteLine("Enter the path for outputting MSBT files:");
+        var path = Console.ReadLine();
+
+        options.OutputPath = path;
+    }
+
+    static void SaveMsbts(List<List<MSBT>> langs, MSBP msbp, ParsingOptions options)
+    {
+        Console.Clear();
+
+        foreach (var lang in langs)
+        {
+            foreach (var msbt in lang)
+            {
+                Console.WriteLine($"Saving {msbt.Language}\\{options.UnnecessaryPathPrefix}{msbt.FileName}.msbt");
+                string filePath = $"{options.OutputPath}\\{msbt.Language}\\{options.UnnecessaryPathPrefix}{msbt.FileName}.msbt";
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+                File.WriteAllBytes(filePath, msbt.Compile(options, msbp));
+            }
+        }
+        
+        Console.WriteLine("\nDone!");
+        ConsoleUtils.Exit();
     }
 }
