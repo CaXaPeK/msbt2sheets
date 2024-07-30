@@ -645,7 +645,7 @@ public class MSBT : GeneralFile
                                 }
                                 tagText += text[k];
                             }
-                            byte[] tagBytes = Tag.Write(writer, tagText, msbp);
+                            byte[] tagBytes = Tag.Write(writer, tagText, options, msbp);
                             if (options.AddLinebreaksAfterPagebreaks && tagBytes.Length == 8 && text.Length != j + 1)
                             {
                                 if ((tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4) ||

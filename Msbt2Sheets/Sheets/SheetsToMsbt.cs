@@ -95,6 +95,11 @@ public class SheetsToMsbt
         ObtainMsbpAttributes(spreadsheet, sheets, msbp);
         ObtainMsbpTags(spreadsheet, sheets, msbp);
 
+        if (msbp.TagGroups.Count == 0)
+        {
+            msbp.TagGroups.Add(MSBP.BaseMSBP.TagGroups[0]);
+        }
+
         return msbp;
     }
 

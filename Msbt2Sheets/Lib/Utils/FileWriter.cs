@@ -78,6 +78,20 @@ public class FileWriter
     {
         _writer.Write(value);
     }
+    
+    public void WriteInt16(short value)
+    {
+        byte[] buffer = new byte[sizeof(ushort)];
+        if (Endianness == Endianness.LittleEndian)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(buffer, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteInt16BigEndian(buffer, value);
+        }
+        _writer.Write(buffer);
+    }
 
     public void WriteUInt16(ushort value)
     {
