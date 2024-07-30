@@ -183,9 +183,9 @@ public class Tag
                 
                 if (shortenTags)
                 {
-                    return $"<{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags)}>";
+                    return $"<{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags, parseCd)}>";
                 }
-                return $"<{group.Name}.{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags)}>";
+                return $"<{group.Name}.{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags, parseCd)}>";
             }
             catch
             {
