@@ -6,7 +6,7 @@ namespace Msbt2Sheets.Lib.Formats.FileComponents;
 public class Header
 {
     public FileType FileType { get; set; }
-    public Endianness Endianness { get; set; }
+    public Endianness Endianness = Endianness.LittleEndian;
     public EncodingType EncodingType { get; set; }
     public byte Version { get; set; }
     public ushort SectionCount = 0;

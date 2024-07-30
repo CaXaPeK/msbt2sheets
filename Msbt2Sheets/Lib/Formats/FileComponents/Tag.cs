@@ -319,7 +319,7 @@ public class Tag
                     break;
                 case ParamType.UInt16:
                     bytes = RawParameters[position..(position + 2)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
@@ -328,7 +328,7 @@ public class Tag
                     break;
                 case ParamType.UInt32:
                     bytes = RawParameters[position..(position + 4)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
@@ -341,7 +341,7 @@ public class Tag
                     break;
                 case ParamType.Int16:
                     bytes = RawParameters[position..(position + 2)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
@@ -350,7 +350,7 @@ public class Tag
                     break;
                 case ParamType.Int32:
                     bytes = RawParameters[position..(position + 4)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
@@ -359,7 +359,7 @@ public class Tag
                     break;
                 case ParamType.Float:
                     bytes = RawParameters[position..(position + 4)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
@@ -368,7 +368,7 @@ public class Tag
                     break;
                 case ParamType.Double:
                     bytes = RawParameters[position..(position + 8)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
@@ -377,7 +377,7 @@ public class Tag
                     break;
                 case ParamType.String:
                     bytes = RawParameters[position..(position + 2)];
-                    if (msbp.Header.Endianness == Endianness.BigEndian)
+                    if (encoding == Encoding.BigEndianUnicode)
                     {
                         bytes = bytes.Reverse().ToArray();
                     }
