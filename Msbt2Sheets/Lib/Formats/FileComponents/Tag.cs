@@ -453,7 +453,7 @@ public class Tag
                 {
                     throw new InvalidDataException("MSBP wasn't provided");
                 }
-                return WriteFormattedTag(writer, tag, msbp, options);
+                return WriteFormattedTag(writer, tag, msbp, options, false);
             }
         }
         catch (Exception e)
@@ -510,161 +510,171 @@ public class Tag
         return ((MemoryStream)tagWriter.BaseStream).ToArray();
     }
 
-    private static byte[] WriteFormattedTag(FileWriter writer, string tag, MSBP msbp, ParsingOptions options)
+    private static byte[] WriteFormattedTag(FileWriter writer, string tag, MSBP msbp, ParsingOptions options, bool parseCd)
     {
-        FileWriter tagWriter = new(new MemoryStream());
         string initialTag = tag;
-        bool isTagEnd = tag[1] == '/';
-        
-        if (isTagEnd)
+        try
         {
-            writer.WriteUInt16(0xF);
-            tagWriter.WriteUInt16(0xF);
-            tag = tag[2..];
-        }
-        else
-        {
-            writer.WriteUInt16(0xE);
-            tagWriter.WriteUInt16(0xE);
-            tag = tag[1..];
-        }
+            FileWriter tagWriter = new(new MemoryStream());
+            tagWriter.Endianness = writer.Endianness;
+            bool isTagEnd = tag[1] == '/';
 
-        bool hasParameters = tag.Contains(' ');
-        bool shortened;
-        if (hasParameters)
-        {
-            shortened = !tag[..tag.IndexOf(' ')].Contains('.');
-        }
-        else
-        {
-            shortened = !tag[..tag.IndexOf('>')].Contains('.');
-        }
-
-        TagGroup group;
-        TagType type;
-        
-        if (shortened)
-        {
-            string typeName = hasParameters ? tag[..tag.IndexOf(' ')] : tag[..tag.IndexOf('>')];
-
-            group = msbp.TagGroups.FirstOrDefault(x => x.Tags.Any(tag => tag.Name == typeName));
-            if (group == null)
+            if (isTagEnd)
             {
-                if (typeName == "p")
+                tagWriter.WriteUInt16(0xF);
+                tag = tag[2..];
+            }
+            else
+            {
+                tagWriter.WriteUInt16(0xE);
+                tag = tag[1..];
+            }
+
+            bool hasParameters = tag.Contains(' ');
+            bool shortened;
+            if (hasParameters)
+            {
+                shortened = !tag[..tag.IndexOf(' ')].Contains('.');
+            }
+            else
+            {
+                shortened = !tag[..tag.IndexOf('>')].Contains('.');
+            }
+
+            TagGroup group;
+            TagType type;
+
+            if (shortened)
+            {
+                string typeName = hasParameters ? tag[..tag.IndexOf(' ')] : tag[..tag.IndexOf('>')];
+
+                group = msbp.TagGroups.FirstOrDefault(x => x.Tags.Any(tag => tag.Name == typeName));
+                if (group == null)
                 {
-                    group = msbp.TagGroups[0];
-                    type = msbp.TagGroups[0].Tags[4];
+                    if (typeName == "p")
+                    {
+                        group = msbp.TagGroups[0];
+                        type = msbp.TagGroups[0].Tags[4];
+                    }
+                    else
+                    {
+                        throw new InvalidDataException($"Can't find groupId of {initialTag}!");
+                    }
                 }
                 else
                 {
-                    throw new InvalidDataException($"Can't find groupId of {initialTag}!");
+                    type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+                    if (type == null)
+                    {
+                        throw new InvalidDataException($"Can't find tagId of {initialTag} in {group.Name}!");
+                    }
                 }
             }
             else
             {
+                string groupName = tag[..tag.IndexOf('.')];
+                group = msbp.TagGroups.FirstOrDefault(x => x.Name == groupName);
+                tag = tag[(tag.IndexOf('.') + 1)..];
+
+                string typeName = hasParameters ? tag[..tag.IndexOf(' ')] : tag[..tag.IndexOf('>')];
+
                 type = group.Tags.FirstOrDefault(x => x.Name == typeName);
                 if (type == null)
                 {
-                    throw new InvalidDataException($"Can't find tagId of {initialTag} in {group.Name}!");
-                }
-            }
-        }
-        else
-        {
-            string groupName = tag[..tag.IndexOf('.')];
-            group = msbp.TagGroups.FirstOrDefault(x => x.Name == groupName);
-            tag = tag[(tag.IndexOf('.') + 1)..];
-            
-            string typeName = hasParameters ? tag[..tag.IndexOf(' ')] : tag[..tag.IndexOf('>')];
-            
-            type = group.Tags.FirstOrDefault(x => x.Name == typeName);
-            if (type == null)
-            {
-                if (groupName == "System" && typeName == "p")
-                {
-                    type = msbp.TagGroups[0].Tags[4];
+                    if (groupName == "System" && typeName == "p")
+                    {
+                        type = msbp.TagGroups[0].Tags[4];
+                    }
+                    else
+                    {
+                        throw new InvalidDataException($"Can't find tagId of {initialTag}!");
+                    }
                 }
                 else
                 {
-                    throw new InvalidDataException($"Can't find tagId of {initialTag}!");
+                    type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+                }
+            }
+
+            ushort groupId = (ushort) msbp.TagGroups.IndexOf(group);
+            ushort typeId = (ushort) group.Tags.IndexOf(type);
+            tagWriter.WriteUInt16(groupId);
+            tagWriter.WriteUInt16(typeId);
+
+            if (hasParameters)
+            {
+                var parametersString = tag[tag.IndexOf(' ')..];
+                List<string> parameterValues = new();
+                if (group.Name == "System" && type.Name == "Color")
+                {
+                    var colorString = parametersString[1..parametersString.IndexOf('>')];
+                    var color = new Color();
+                    short colorId = -1;
+                    if (msbp.Colors.ContainsKey(colorString))
+                    {
+                        color = msbp.Colors[colorString];
+                        colorId = (short) msbp.Colors.Keys.ToList().IndexOf(colorString);
+                    }
+                    else if (colorString.StartsWith('#'))
+                    {
+                        colorString = colorString[1..];
+                        var bytes = Convert.FromHexString(colorString);
+                        color = Color.FromArgb(bytes[3], bytes[0], bytes[1], bytes[2]);
+                    }
+                    else
+                    {
+                        colorId = Convert.ToInt16(colorString);
+                    }
+
+                    if (options.ColorIdentification == "By RGBA bytes")
+                    {
+                        tagWriter.WriteUInt16(4);
+                        tagWriter.WriteByte(color.R);
+                        tagWriter.WriteByte(color.G);
+                        tagWriter.WriteByte(color.B);
+                        tagWriter.WriteByte(color.A);
+                    }
+                    else
+                    {
+                        tagWriter.WriteUInt16(2);
+                        tagWriter.WriteInt16(colorId);
+                    }
+                }
+                else
+                {
+                    parameterValues = ParseParametersString(parametersString, shortened);
+                    byte[] parameterBytes = ParameterValuesToByteArray(parameterValues, type.Parameters, parseCd);
+                    tagWriter.WriteUInt16((ushort) parameterBytes.Length);
+                    tagWriter.WriteBytes(parameterBytes);
+                }
+            }
+            else if (!isTagEnd)
+            {
+                tagWriter.WriteUInt16(0);
+            }
+
+            byte[] tagBytes = ((MemoryStream) tagWriter.BaseStream).ToArray();
+            writer.WriteBytes(tagBytes);
+            return tagBytes;
+        }
+        catch (Exception e)
+        {
+            if (!parseCd)
+            {
+                try
+                {
+                    return WriteFormattedTag(writer, initialTag, msbp, options, true);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidDataException(ex.Message);
                 }
             }
             else
             {
-                type = group.Tags.FirstOrDefault(x => x.Name == typeName);
+                throw new InvalidDataException(e.Message);
             }
         }
-        
-        ushort groupId = (ushort)msbp.TagGroups.IndexOf(group);
-        ushort typeId = (ushort)group.Tags.IndexOf(type);
-        writer.WriteUInt16(groupId);
-        writer.WriteUInt16(typeId);
-        tagWriter.WriteUInt16(groupId);
-        tagWriter.WriteUInt16(typeId);
-
-        if (hasParameters)
-        {
-            var parametersString = tag[tag.IndexOf(' ')..];
-            List<string> parameterValues = new();
-            if (group.Name == "System" && type.Name == "Color")
-            {
-                var colorString = parametersString[1..parametersString.IndexOf('>')];
-                var color = new Color();
-                short colorId = -1;
-                if (msbp.Colors.ContainsKey(colorString))
-                {
-                    color = msbp.Colors[colorString];
-                    colorId = (short)msbp.Colors.Keys.ToList().IndexOf(colorString);
-                }
-                else if (colorString.StartsWith('#'))
-                {
-                    colorString = colorString[1..];
-                    var bytes = Convert.FromHexString(colorString);
-                    color = Color.FromArgb(bytes[3], bytes[0], bytes[1], bytes[2]);
-                }
-                else
-                {
-                    colorId = Convert.ToInt16(colorString);
-                }
-
-                if (options.ColorIdentification == "By RGBA bytes")
-                {
-                    writer.WriteUInt16(4);
-                    writer.WriteByte(color.R);
-                    writer.WriteByte(color.G);
-                    writer.WriteByte(color.B);
-                    writer.WriteByte(color.A);
-                    tagWriter.WriteUInt16(4);
-                    tagWriter.WriteByte(color.R);
-                    tagWriter.WriteByte(color.G);
-                    tagWriter.WriteByte(color.B);
-                    tagWriter.WriteByte(color.A);
-                }
-                else
-                {
-                    writer.WriteUInt16(2);
-                    writer.WriteInt16(colorId);
-                    tagWriter.WriteUInt16(2);
-                    tagWriter.WriteInt16(colorId);
-                }
-            }
-            else
-            {
-                parameterValues = ParseParametersString(parametersString, shortened);
-                byte[] parameterBytes = ParameterValuesToByteArray(parameterValues, type.Parameters, msbp);
-                writer.WriteUInt16((ushort) parameterBytes.Length);
-                writer.WriteBytes(parameterBytes);
-                tagWriter.WriteUInt16((ushort) parameterBytes.Length);
-                tagWriter.WriteBytes(parameterBytes);
-            }
-        }
-        else if (!isTagEnd)
-        {
-            writer.WriteUInt16(0);
-            tagWriter.WriteUInt16(0);
-        }
-        
-        return ((MemoryStream)tagWriter.BaseStream).ToArray();
     }
 
     private static List<string> ParseParametersString(string parametersString, bool shortened = false)
@@ -712,13 +722,20 @@ public class Tag
         return parameterValues;
     }
 
-    private static byte[] ParameterValuesToByteArray(List<string> values, List<TagParameter> parameters, MSBP msbp)
+    private static byte[] ParameterValuesToByteArray(List<string> values, List<TagParameter> parameters, bool parseCd)
     {
         List<byte> bytes = new();
 
+        int paramId = 0;
         for (int i = 0; i < values.Count; i++)
         {
-            switch (parameters[i].Type)
+            if (values[i] == "CD" && parseCd)
+            {
+                bytes.Add(0xCD);
+                continue;
+            }
+            
+            switch (parameters[paramId].Type)
             {
                 case ParamType.UInt8:
                     bytes.Add(Convert.ToByte(values[i]));
@@ -749,15 +766,17 @@ public class Tag
                     bytes.AddRange(Encoding.Unicode.GetBytes(values[i]));
                     break;
                 case ParamType.List:
-                    int localListItemId = parameters[i].List.IndexOf(values[i]);
-                    int globalListItemId = parameters[i].ListItemIds.IndexOf((ushort)localListItemId);
-                    bytes.Add((byte)globalListItemId);
-                    bytes.Add(0xCD);
+                    int localListItemId = parameters[paramId].List.IndexOf(values[i]);
+                    //int globalListItemId = parameters[paramId].ListItemIds.IndexOf((ushort)localListItemId);
+                    bytes.Add((byte)localListItemId); 
+                    //bytes.Add(0xCD);
                     break;
                 default:
                     throw new InvalidDataException(
-                        $"Parameter {parameters[i].Name} has an invalid type of {(byte)parameters[i].Type}!");
+                        $"Parameter {parameters[paramId].Name} has an invalid type of {(byte)parameters[i].Type}!");
             }
+
+            paramId++;
         }
         
         return bytes.ToArray();

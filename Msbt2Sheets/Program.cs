@@ -54,7 +54,7 @@ while (true)
     Dictionary<string, string> fileOptions = ParseOptions();
     
     Console.Clear();
-    Console.WriteLine("Welcome to Msbt2Sheets! What do you want to create?\n\n1 - Spreadsheet\n2 - MSBT");
+    Console.WriteLine("Welcome to Msbt2Sheets! What do you want to create?\n\n1 - Spreadsheet\n2 - MSBT folders");
     string mode;
     if (fileOptions.ContainsKey("mode"))
     {

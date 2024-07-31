@@ -296,7 +296,7 @@ public class SheetsToMsbt
                 
                 if (row[4] != "")
                 {
-                    msbp.TagGroups.Last().Tags.Last().Parameters.Last().List.Add(row[3]);
+                    msbp.TagGroups.Last().Tags.Last().Parameters.Last().List.Add(row[4]);
                 }
             }
         }
@@ -430,7 +430,14 @@ public class SheetsToMsbt
 
                 if (headerRow.Count(x => x.EndsWith('%')) > 0)
                 {
-                    attributeColumnId = langColumnId + 1;
+                    if (headerRow[langColumnId + 1].EndsWith('%'))
+                    {
+                        attributeColumnId = langColumnId + 1;
+                    }
+                    else
+                    {
+                        attributeColumnId = headerRow.FindIndex(x => x.EndsWith('%'));
+                    }
                 }
 
                 if (sheet.Properties.GridProperties.RowCount == 1 && attributeColumnId != -1)
