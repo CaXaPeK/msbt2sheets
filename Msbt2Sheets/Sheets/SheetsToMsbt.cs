@@ -9,12 +9,13 @@ namespace Msbt2Sheets.Sheets;
 
 public class SheetsToMsbt
 {
-    public static void Create(GoogleSheetsManager sheetsManager)
+    public static void Create(GoogleSheetsManager sheetsManager, Dictionary<string, string> fileOptions)
     {
         Console.Clear();
         ConsoleUtils.WriteLineColored("Enter your spreadsheet's ID.\n(It's in the link: https://docs.google.com/spreadsheets/d/|1pRFVKt4fNnWHKf8kIpSk0qmu7u-EdHEUGwkTP9Kzq3A|/edit)", ConsoleColor.Cyan);
-        string spreadsheetId = Console.ReadLine();
+        string spreadsheetId = fileOptions.ContainsKey("spreadsheetId") ? fileOptions["spreadsheetId"] : Console.ReadLine();
         
+        Console.Clear();
         Console.WriteLine("Loading metadata from the spreadsheet...");
         Spreadsheet spreadsheet = sheetsManager.GetSpreadSheet(spreadsheetId);
         
@@ -33,11 +34,11 @@ public class SheetsToMsbt
 
         MSBP msbp = ObtainMsbp(spreadsheet, sheets);
 
-        List<string> langNames = AskLanguageNames(spreadsheet, sheets);
+        List<string> langNames = AskLanguageNames(spreadsheet, sheets, fileOptions);
 
         List<List<MSBT>> langs = ObtainMsbts(spreadsheet, sheets, options, msbp, langNames);
 
-        AskOutputPath(options);
+        AskOutputPath(options, fileOptions);
         
         SaveMsbts(langs, msbp, options);
         
@@ -310,8 +311,13 @@ public class SheetsToMsbt
         }
     }
 
-    static List<string> AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
+    static List<string> AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets, Dictionary<string, string> fileOptions)
     {
+        if (fileOptions.ContainsKey("langs"))
+        {
+            return fileOptions["langs"].Split('|').ToList();
+        }
+        
         int msbtSheetId = spreadsheet.Sheets.ToList().FindIndex(x => !x.Properties.Title.StartsWith('#'));
         if (msbtSheetId == -1)
         {
@@ -676,11 +682,11 @@ public class SheetsToMsbt
         return -1;
     }
 
-    static void AskOutputPath(ParsingOptions options)
+    static void AskOutputPath(ParsingOptions options, Dictionary<string, string> fileOptions)
     {
         Console.Clear();
         Console.WriteLine("Enter the path for outputting MSBT files:");
-        var path = Console.ReadLine();
+        var path = fileOptions.ContainsKey("outputPath") ? fileOptions["outputPath"] : Console.ReadLine();
 
         options.OutputPath = path;
     }

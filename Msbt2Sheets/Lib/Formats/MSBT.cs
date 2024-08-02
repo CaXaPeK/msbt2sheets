@@ -593,16 +593,34 @@ public class MSBT : GeneralFile
         private static long FindPosOfEndFileOrAb(FileReader reader, long startPos)
         {
             long prevPos = reader.Position;
+            long pos = 0;
             
             while (!reader.AtEndOfStream)
             {
                 if (reader.ReadByte() == 0xAB)
                 {
-                    break;
+                    if (reader.AtEndOfStream)
+                    {
+                        pos = reader.Position;
+                        break;
+                    }
+                    else
+                    {
+                        if (reader.ReadByte() == 0xAB)
+                        {
+                            pos = reader.Position - 1;
+                            break;
+                        }
+                        else
+                        {
+                            reader.Position--;
+                        }
+                    }
                 }
-            }
 
-            long pos = reader.Position;
+                pos = reader.Position;
+            }
+            
             reader.Position = prevPos;
 
             return pos;

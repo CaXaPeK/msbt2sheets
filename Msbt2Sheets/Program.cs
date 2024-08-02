@@ -71,7 +71,7 @@ while (true)
             ConsoleUtils.Exit();
             break;
         case "2":
-            SheetsToMsbt.Create(sheetsManager);
+            SheetsToMsbt.Create(sheetsManager, fileOptions);
             ConsoleUtils.Exit();
             break;
     }
