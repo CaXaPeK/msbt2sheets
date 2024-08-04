@@ -11,13 +11,33 @@ public class SheetsToMsbt
 {
     public static void Create(GoogleSheetsManager sheetsManager, Dictionary<string, string> fileOptions)
     {
+        ParsingOptions options = new();
+        SetOptionsFromFile(options, fileOptions);
+        
         Console.Clear();
         ConsoleUtils.WriteLineColored("Enter your spreadsheet's ID.\n(It's in the link: https://docs.google.com/spreadsheets/d/|1pRFVKt4fNnWHKf8kIpSk0qmu7u-EdHEUGwkTP9Kzq3A|/edit)", ConsoleColor.Cyan);
-        string spreadsheetId = fileOptions.ContainsKey("spreadsheetId") ? fileOptions["spreadsheetId"] : Console.ReadLine();
+        string spreadsheetId = options.SpreadsheetId != "" ? options.SpreadsheetId : Console.ReadLine();
         
         Console.Clear();
         Console.WriteLine("Loading metadata from the spreadsheet...");
         Spreadsheet spreadsheet = sheetsManager.GetSpreadSheet(spreadsheetId);
+
+        if (options.SheetNames.Count > 0)
+        {
+            Spreadsheet newSpreadsheet = new()
+            {
+                Sheets = new List<Sheet>()
+            };
+            foreach (var sheet in spreadsheet.Sheets)
+            {
+                if (sheet.Properties.Title.StartsWith('#') || options.SheetNames.Contains(sheet.Properties.Title))
+                {
+                    newSpreadsheet.Sheets.Add(sheet);
+                }
+            }
+
+            spreadsheet = newSpreadsheet;
+        }
         
         List<string> requestRanges = new List<string>();
         foreach (Sheet sheet in spreadsheet.Sheets)
@@ -30,15 +50,15 @@ public class SheetsToMsbt
         var spreadsheetValues = valueRanges.ValueRanges.ToList();
         var sheets = ValueRangesToStringLists(spreadsheetValues);
 
-        ParsingOptions options = ObtainOptions(spreadsheet, sheets);
+        ObtainOptions(spreadsheet, sheets, options);
 
         MSBP msbp = ObtainMsbp(spreadsheet, sheets);
 
-        List<string> langNames = AskLanguageNames(spreadsheet, sheets, fileOptions);
+        AskLanguageNames(spreadsheet, sheets, options);
 
-        List<List<MSBT>> langs = ObtainMsbts(spreadsheet, sheets, options, msbp, langNames);
+        List<List<MSBT>> langs = ObtainMsbts(spreadsheet, sheets, options, msbp);
 
-        AskOutputPath(options, fileOptions);
+        AskOutputPath(options);
         
         SaveMsbts(langs, msbp, options);
         
@@ -67,24 +87,108 @@ public class SheetsToMsbt
         return sheets;
     }
 
-    static ParsingOptions ObtainOptions(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
+    static void ObtainOptions(Spreadsheet spreadsheet, List<List<List<string>>> sheets, ParsingOptions options)
     {
-        int sheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Settings");
-        ParsingOptions options = new();
-        
-        foreach (var row in sheets[sheetId])
+        if (!options.NoSettingsSheet)
         {
-            if (row[0] == "Add linebreaks after pagebreaks")
+            int sheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Settings");
+            foreach (var row in sheets[sheetId])
             {
-                options.AddLinebreaksAfterPagebreaks = row[1] == "TRUE";
-            }
-            if (row[0] == "Color identification")
-            {
-                options.ColorIdentification = row[1];
+                if (row[0] == "Add linebreaks after pagebreaks")
+                {
+                    options.AddLinebreaksAfterPagebreaks = row[1] == "TRUE";
+                }
+                if (row[0] == "Color identification")
+                {
+                    options.ColorIdentification = row[1];
+                }
             }
         }
+    }
 
-        return options;
+    static void SetOptionsFromFile(ParsingOptions options, Dictionary<string, string> fileOptions)
+    {
+        foreach (var option in fileOptions)
+        {
+            switch (option.Key)
+            {
+                case "spreadsheetId":
+                    options.SpreadsheetId = option.Value;
+                    break;
+                case "outputPath":
+                    options.OutputPath = option.Value;
+                    break;
+                case "noStatsSheet":
+                    options.NoStatsSheet = Convert.ToBoolean(option.Value);
+                    break;
+                case "noSettingsSheet":
+                    options.NoSettingsSheet = Convert.ToBoolean(option.Value);
+                    break;
+                case "noInternalDataSheet":
+                    options.NoInternalDataSheet = Convert.ToBoolean(option.Value);
+                    break;
+                case "addLinebreaksAfterPagebreaks":
+                    options.AddLinebreaksAfterPagebreaks = Convert.ToBoolean(option.Value);
+                    break;
+                case "colorIdentification":
+                    options.ColorIdentification = option.Value;
+                    break;
+                case "skipLangIfNotTranslated":
+                    options.SkipLangIfNotTranslated = Convert.ToBoolean(option.Value);
+                    break;
+                case "extendedHeader":
+                    options.ExtendedHeader = Convert.ToBoolean(option.Value);
+                    break;
+                case "sheetNames":
+                    options.SheetNames = option.Value.Split('|').ToList();
+                    break;
+                case "customFileNames":
+                    options.CustomFileNames = option.Value.Split('|').ToList();
+                    break;
+                case "globalVersion":
+                    options.GlobalVersion = Convert.ToByte(option.Value);
+                    break;
+                case "globalEndianness":
+                    options.GlobalEndianness = option.Value == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
+                    break;
+                case "globalEncoding":
+                    Enum.TryParse(option.Value, out EncodingType encoding);
+                    options.GlobalEncodingType = encoding;
+                    break;
+                case "globalAto1":
+                    string[] ato1sStr = option.Value.Split(", ");
+                    foreach (var ato1Str in ato1sStr)
+                    {
+                        options.GlobalAto1.Add(Convert.ToInt32(ato1Str));
+                    }
+                    break;
+                case "slotCounts":
+                    string[] slotCountsStr = option.Value.Split('|');
+                    foreach (var slotCountStr in slotCountsStr)
+                    {
+                        options.SlotCounts.Add(Convert.ToUInt32(slotCountStr));
+                    }
+                    break;
+                case "uiLangs":
+                    options.UiLangNames = option.Value.Split('|').ToList();
+                    break;
+                case "outputLangs":
+                    options.OutputLangNames = option.Value.Split('|').ToList();
+                    break;
+                case "noTranslationSymbol":
+                    options.NoTranslationSymbol = option.Value;
+                    break;
+                case "noMessageSymbol":
+                    options.NoMessageSymbol = option.Value;
+                    break;
+                case "noFileSymbol":
+                    options.NoFileSymbol = option.Value;
+                    break;
+                case "mainLangColumnId":
+                    options.MainLangColumnId = Convert.ToInt32(option.Value);
+                    break;
+            }
+        }
     }
 
     static MSBP ObtainMsbp(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
@@ -311,11 +415,11 @@ public class SheetsToMsbt
         }
     }
 
-    static List<string> AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets, Dictionary<string, string> fileOptions)
+    static void AskLanguageNames(Spreadsheet spreadsheet, List<List<List<string>>> sheets, ParsingOptions options)
     {
-        if (fileOptions.ContainsKey("langs"))
+        if (options.UiLangNames.Count > 0)
         {
-            return fileOptions["langs"].Split('|').ToList();
+            return;
         }
         
         int msbtSheetId = spreadsheet.Sheets.ToList().FindIndex(x => !x.Properties.Title.StartsWith('#'));
@@ -378,50 +482,78 @@ public class SheetsToMsbt
             wantedLanguageIds.Add(headerRow.IndexOf(name));
         }
 
-        return wantedLanguageNames;
+        options.UiLangNames = wantedLanguageNames;
     }
 
     static List<List<MSBT>> ObtainMsbts(Spreadsheet spreadsheet, List<List<List<string>>> sheets,
-        ParsingOptions options, MSBP msbp, List<string> langNames)
+        ParsingOptions options, MSBP msbp)
     {
         Console.Clear();
         
         List<List<MSBT>> langs = new();
-        for (int i = 0; i < langNames.Count; i++)
+        for (int i = 0; i < options.UiLangNames.Count; i++)
         {
             langs.Add(new());
         }
         
-        var msbtSheetIds = GetMsbtSheetIds(spreadsheet, sheets);
-        foreach (var msbtSheetId in msbtSheetIds)
+        var msbtSheetIds = GetMsbtSheetIds(spreadsheet, options);
+        for (int a = 0; a < msbtSheetIds.Count; a++)
         {
+            int msbtSheetId = msbtSheetIds[a];
+            
             var sheet = spreadsheet.Sheets[msbtSheetId];
             var sheetName = sheet.Properties.Title;
+            var fileName = options.CustomFileNames.Count == 0 ? sheetName : options.CustomFileNames[a];
             var sheetGrid = sheets[msbtSheetId];
             var headerRow = sheetGrid[0];
 
-            var internalSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#InternalData");
-            if (internalSheetId == -1)
+            uint slotCount;
+            byte version;
+            Endianness byteOrder;
+            EncodingType encoding;
+            bool hasAto1;
+            List<int> ato1 = new();
+            
+            if (!options.NoInternalDataSheet)
             {
-                ConsoleUtils.Exit("Your spreadsheet doesn't contain an #InternalData sheet.");
+                var internalSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#InternalData");
+                if (internalSheetId == -1)
+                {
+                    ConsoleUtils.Exit("Your spreadsheet doesn't contain an #InternalData sheet.");
+                }
+            
+                var internalDataRowId = sheets[internalSheetId].FindIndex(x => x[0] == sheetName);
+                var internalDataRow = sheets[internalSheetId][internalDataRowId];
+                slotCount = Convert.ToUInt32(internalDataRow[1]);
+                version = Convert.ToByte(internalDataRow[2]);
+                byteOrder = internalDataRow[3] == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
+                Enum.TryParse(internalDataRow[4], out EncodingType encodingTemp);
+                encoding = encodingTemp;
+                hasAto1 = spreadsheet.Sheets[internalSheetId].Properties.GridProperties.ColumnCount == 6;
+                if (hasAto1)
+                {
+                    ato1 = CommaSpaceNumbersToList(internalDataRow[5]);
+                }
+            }
+            else
+            {
+                if (options.SlotCounts.Count != msbtSheetIds.Count)
+                {
+                    ConsoleUtils.Exit("Amount of SlotCounts in the preset doesn't correspond with the amount of processed sheets.");
+                }
+
+                slotCount = options.SlotCounts[a];
+                version = options.GlobalVersion;
+                byteOrder = options.GlobalEndianness;
+                encoding = options.GlobalEncodingType;
+                hasAto1 = options.GlobalAto1.Count > 0;
+                ato1 = options.GlobalAto1;
             }
             
-            var internalDataRowId = sheets[internalSheetId].FindIndex(x => x[0] == sheetName);
-            var internalDataRow = sheets[internalSheetId][internalDataRowId];
-            var slotCount = Convert.ToUInt32(internalDataRow[1]);
-            var version = Convert.ToByte(internalDataRow[2]);
-            var byteOrder = internalDataRow[3] == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
-            Enum.TryParse(internalDataRow[4], out EncodingType encoding);
-            var ato1 = new List<int>();
-            var hasAto1 = spreadsheet.Sheets[internalSheetId].Properties.GridProperties.ColumnCount == 6;
-            if (hasAto1)
+            for (int j = 0; j < options.UiLangNames.Count; j++)
             {
-                ato1 = CommaSpaceNumbersToList(internalDataRow[5]);
-            }
-            
-            foreach (var langName in langNames)
-            {
-                Console.WriteLine($"Obtaining {sheetName}.msbt ({langName})...");
+                var langName = options.UiLangNames[j];
+                Console.WriteLine($"Obtaining {fileName}.msbt ({langName})...");
                 var langColumnId = headerRow.IndexOf(langName);
                 
                 var hasAtr1 = false;
@@ -454,25 +586,33 @@ public class SheetsToMsbt
 
                 bool noFileFlag = false;
                 var messages = new Dictionary<object, Message>();
-                for (int i = 1; i < sheetGrid.Count; i++)
+                int startRowId = options.ExtendedHeader ? 2 : 1;
+                bool hasTranslatedMessages = false;
+                for (int i = startRowId; i < sheetGrid.Count; i++)
                 {
                     var messageRow = sheetGrid[i];
 
+                    FillWithEmpty(messageRow, headerRow.Count);
+                    
                     var label = messageRow[0];
                     var text = messageRow[langColumnId];
                     
-                    if (text == "{{no-translation}}")
-                    {
-                        text = messageRow[1];
-                    }
-                    if (text == "{{no-message}}")
+                    if (text == options.NoMessageSymbol)
                     {
                         continue;
                     }
-                    if (text == "{{no-file}}")
+                    if (text == options.NoFileSymbol)
                     {
                         noFileFlag = true;
                         break;
+                    }
+                    if (text == options.NoTranslationSymbol)
+                    {
+                        text = messageRow[options.MainLangColumnId];
+                    }
+                    else
+                    {
+                        hasTranslatedMessages = true;
                     }
                     
                     var attributeByteData = new byte[]{};
@@ -555,15 +695,20 @@ public class SheetsToMsbt
                     if (curLength != bytesPerAttribute)
                     {
                         throw new InvalidDataException(
-                            $"Atrribute lengths of messages \"{messages.First().Key}\" and \"{message.Key}\" mismatch ({bytesPerAttribute} and {curLength})");
+                            $"Attribute lengths of messages \"{messages.First().Key}\" and \"{message.Key}\" mismatch ({bytesPerAttribute} and {curLength})");
                     }
                 }
-                
-                langs[langNames.IndexOf(langName)].Add(new MSBT
+
+                if (options.SkipLangIfNotTranslated && !hasTranslatedMessages)
                 {
-                    FileName = sheetName,
-                    Language = langName,
-                    Header = new Header()
+                    continue;
+                }
+                
+                langs[options.UiLangNames.IndexOf(langName)].Add(new MSBT
+                {
+                    FileName = fileName,
+                    Language = options.OutputLangNames[j],
+                    Header = new Header
                     {
                         FileType = FileType.MSBT,
                         Version = version,
@@ -586,18 +731,33 @@ public class SheetsToMsbt
         return langs;
     }
     
-    static List<int> GetMsbtSheetIds(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
+    static List<int> GetMsbtSheetIds(Spreadsheet spreadsheet, ParsingOptions options)
     {
         List<int> ids = new();
         int counter = 0;
-        foreach (var sheet in spreadsheet.Sheets)
+        if (options.SheetNames.Count == 0)
         {
-            if (!sheet.Properties.Title.StartsWith('#'))
+            foreach (var sheet in spreadsheet.Sheets)
             {
-                ids.Add(counter);
-            }
+                if (!sheet.Properties.Title.StartsWith('#'))
+                {
+                    ids.Add(counter);
+                }
 
-            counter++;
+                counter++;
+            }
+        }
+        else
+        {
+            foreach (var sheet in spreadsheet.Sheets)
+            {
+                if (options.SheetNames.Contains(sheet.Properties.Title))
+                {
+                    ids.Add(counter);
+                }
+
+                counter++;
+            }
         }
 
         return ids;
@@ -682,13 +842,16 @@ public class SheetsToMsbt
         return -1;
     }
 
-    static void AskOutputPath(ParsingOptions options, Dictionary<string, string> fileOptions)
+    static void AskOutputPath(ParsingOptions options)
     {
-        Console.Clear();
-        Console.WriteLine("Enter the path for outputting MSBT files:");
-        var path = fileOptions.ContainsKey("outputPath") ? fileOptions["outputPath"] : Console.ReadLine();
+        if (options.OutputPath == "")
+        {
+            Console.Clear();
+            Console.WriteLine("Enter the path for outputting MSBT files:");
+            var path = Console.ReadLine();
 
-        options.OutputPath = path;
+            options.OutputPath = path;
+        }
     }
 
     static void SaveMsbts(List<List<MSBT>> langs, MSBP msbp, ParsingOptions options)
@@ -697,6 +860,10 @@ public class SheetsToMsbt
 
         foreach (var lang in langs)
         {
+            if (options.SkipLangIfNotTranslated && lang.Count == 0)
+            {
+                continue;
+            }
             foreach (var msbt in lang)
             {
                 Console.WriteLine($"Saving {msbt.Language}\\{options.UnnecessaryPathPrefix}{msbt.FileName}.msbt");
@@ -706,7 +873,7 @@ public class SheetsToMsbt
             }
         }
         
-        Console.WriteLine("\nDone!");
+        Console.WriteLine($"\nDone! Saved at {options.OutputPath}");
         ConsoleUtils.Exit();
     }
 }

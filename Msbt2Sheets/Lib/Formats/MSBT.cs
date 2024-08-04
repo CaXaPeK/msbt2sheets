@@ -663,18 +663,57 @@ public class MSBT : GeneralFile
                                 }
                                 tagText += text[k];
                             }
-                            byte[] tagBytes = Tag.Write(writer, tagText, options, msbp);
-                            if (options.AddLinebreaksAfterPagebreaks && tagBytes.Length == 8 && text.Length != j + 1)
+
+                            try
                             {
-                                if ((tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4) ||
-                                    (tagBytes[1] == 0xE && tagBytes[3] == 0x0 && tagBytes[5] == 0x4))
+                                byte[] tagBytes = Tag.Write(writer, tagText, options, msbp);
+                                if (options.AddLinebreaksAfterPagebreaks && tagBytes.Length == 8 &&
+                                    text.Length != j + 1)
                                 {
-                                    if (text[j + 1] == '\n')
+                                    if ((tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4) ||
+                                        (tagBytes[1] == 0xE && tagBytes[3] == 0x0 && tagBytes[5] == 0x4))
                                     {
-                                        j++;
+                                        if (text[j + 1] == '\n')
+                                        {
+                                            j++;
+                                        }
                                     }
                                 }
                             }
+                            catch
+                            {
+                                Console.WriteLine($"Couldn't parse tag {tagText}");
+                                writer.WriteString(tagText, encoding);
+                            }
+
+                            break;
+                        case '\\':
+                            if (j + 1 == text.Length)
+                            {
+                                writer.WriteString(c.ToString(), encoding);
+                                break;
+                            }
+
+                            char nextChar = text[j + 1];
+                            switch (nextChar)
+                            {
+                                case '<':
+                                    writer.WriteString("<", encoding);
+                                    j++;
+                                    break;
+                                case '>':
+                                    writer.WriteString(">", encoding);
+                                    j++;
+                                    break;
+                                case '\\':
+                                    writer.WriteString("\\", encoding);
+                                    j++;
+                                    break;
+                                default:
+                                    writer.WriteString("\\", encoding);
+                                    break;
+                            }
+
                             break;
                         default:
                             writer.WriteString(c.ToString(), encoding);

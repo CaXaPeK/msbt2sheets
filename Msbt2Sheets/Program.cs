@@ -34,14 +34,29 @@ static Dictionary<string, string> ParseOptions()
 {
     Dictionary<string, string> dict = new();
     
-    string optionsPath = Environment.CurrentDirectory + "/data/options.txt";
-    if (File.Exists(optionsPath))
+    string optionsPath = Environment.CurrentDirectory + "/data/presets/";
+    string[] presets = Directory.GetFiles(optionsPath);
+    if (presets.Length == 0)
     {
-        foreach (string s in File.ReadAllLines(optionsPath))
+        return dict;
+    }
+    else
+    {
+        Console.WriteLine($"{presets.Length} preset{(presets.Length == 1 ? "" : "s")} found. Which do you want to use?\n\n0: Don't use");
+        for (int i = 0; i < presets.Length; i++)
         {
-            if (s.Contains('='))
+            Console.WriteLine($"{i + 1}: {Path.GetFileNameWithoutExtension(presets[i])}");
+        }
+
+        var presetId = Convert.ToInt32(Console.ReadLine()) - 1;
+        if (presetId >= 0 && presetId < presets.Length)
+        {
+            foreach (string s in File.ReadAllLines(presets[presetId]))
             {
-                dict.Add(s.Split('=')[0], s.Split('=')[1]);
+                if (s.Contains('='))
+                {
+                    dict.Add(s.Split('=')[0], s.Split('=')[1]);
+                }
             }
         }
     }
