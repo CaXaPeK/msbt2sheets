@@ -87,3 +87,5 @@ Keep in mind that lists are formatted like this, with a "|" separator: EUen|EUfr
 
 # Known bugs
 - Can't work with very large games (eg. Tears of the Kingdom). *TODO: Send data in small chunks*
+
+These early versions are extremly buggy, so if you encounter errors, please write about them in the Issues!
