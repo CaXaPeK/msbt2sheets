@@ -189,6 +189,11 @@ public class SheetsToMsbt
                     break;
             }
         }
+
+        if (options.UiLangNames.Count > 0 && options.OutputLangNames.Count == 0)
+        {
+            options.OutputLangNames = options.UiLangNames;
+        }
     }
 
     static MSBP ObtainMsbp(Spreadsheet spreadsheet, List<List<List<string>>> sheets)
@@ -483,6 +488,10 @@ public class SheetsToMsbt
         }
 
         options.UiLangNames = wantedLanguageNames;
+        if (options.UiLangNames.Count > 0 && options.OutputLangNames.Count == 0)
+        {
+            options.OutputLangNames = options.UiLangNames;
+        }
     }
 
     static List<List<MSBT>> ObtainMsbts(Spreadsheet spreadsheet, List<List<List<string>>> sheets,
