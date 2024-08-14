@@ -201,4 +201,35 @@ public class AttributeInfo
         Offset = offset;
         List = list;
     }
+
+    public object Read(FileReader reader, long attrStartPosition, long startPosition, Encoding encoding)
+    {
+        switch (Type)
+        {
+            case ParamType.UInt8:
+                return reader.ReadByteAt(attrStartPosition);
+            case ParamType.UInt16:
+                return reader.ReadUInt16At(attrStartPosition);
+            case ParamType.UInt32:
+                return reader.ReadUInt32At(attrStartPosition);
+            case ParamType.Int8:
+                return reader.ReadSByteAt(attrStartPosition);
+            case ParamType.Int16:
+                return reader.ReadInt16At(attrStartPosition);
+            case ParamType.Int32:
+                return reader.ReadInt32At(attrStartPosition);
+            case ParamType.Float:
+                return reader.ReadSingleAt(attrStartPosition);
+            case ParamType.Double:
+                return reader.ReadDoubleAt(attrStartPosition);
+            case ParamType.String:
+                int stringOffset = reader.ReadInt32At(attrStartPosition);
+                return reader.PeekTerminatedString(startPosition + stringOffset, encoding);
+            case ParamType.List:
+                byte itemId = reader.ReadByteAt(attrStartPosition);
+                return List[itemId];
+            default:
+                throw new Exception($"Attribute {Name} has an unknown type!");
+        }
+    }
 }

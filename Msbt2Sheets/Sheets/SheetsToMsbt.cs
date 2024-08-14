@@ -91,6 +91,7 @@ public class SheetsToMsbt
     {
         if (!options.NoSettingsSheet)
         {
+            Dictionary<string, string> langNames = new();
             int sheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#Settings");
             foreach (var row in sheets[sheetId])
             {
@@ -101,6 +102,33 @@ public class SheetsToMsbt
                 if (row[0] == "Color identification")
                 {
                     options.ColorIdentification = row[1];
+                }
+                if (row[0].EndsWith(" internal name"))
+                {
+                    string uiName = row[0][..(row[0].Length - " internal name".Length)];
+                    string internalName = row[1];
+                    langNames.Add(uiName, internalName);
+                }
+            }
+            
+            int messageSheetId = spreadsheet.Sheets.ToList().FindIndex(x => !x.Properties.Title.StartsWith('#'));
+            List<string> headerRow = sheets[messageSheetId][0];
+                
+            for (int i = 0; i < headerRow.Count; i++)
+            {
+                string name = headerRow[i];
+                if (name == "Labels" || name == "Attributes" || name.EndsWith('%'))
+                {
+                    continue;
+                }
+                options.InternalLangNames.Add(name);
+            }
+
+            if (langNames.Count != 0)
+            {
+                foreach (var entry in langNames)
+                {
+                    options.InternalLangNames[options.InternalLangNames.FindIndex(x => x == entry.Key)] = entry.Value;
                 }
             }
         }
@@ -444,6 +472,7 @@ public class SheetsToMsbt
         }
 
         List<string> wantedLanguageNames = new();
+        List<string> wantedInternalLanguageNames = new();
         while (true)
         {
             Console.Clear();
@@ -476,21 +505,16 @@ public class SheetsToMsbt
                 }
 
                 wantedLanguageNames.Add(languageNames[intId]);
+                wantedInternalLanguageNames.Add(options.InternalLangNames[intId]);
             }
 
             break;
         }
 
-        List<int> wantedLanguageIds = new();
-        foreach (var name in wantedLanguageNames)
-        {
-            wantedLanguageIds.Add(headerRow.IndexOf(name));
-        }
-
         options.UiLangNames = wantedLanguageNames;
         if (options.UiLangNames.Count > 0 && options.OutputLangNames.Count == 0)
         {
-            options.OutputLangNames = options.UiLangNames;
+            options.OutputLangNames = wantedInternalLanguageNames;
         }
     }
 
@@ -675,9 +699,11 @@ public class SheetsToMsbt
                                 attributeByteData = Convert.FromHexString(attributeDict["Attributes"].Replace("-", ""));
                                 attributeDict.Remove("Attributes");
                             }
-
-                            attributeByteData = MessageAttribute.KeysAndValuesToBytes(attributeDict.Keys.ToList(),
-                                attributeDict.Values.ToList(), msbp);
+                            else
+                            {
+                                attributeByteData = MessageAttribute.KeysAndValuesToBytes(attributeDict.Keys.ToList(),
+                                    attributeDict.Values.ToList(), msbp);
+                            }
                         }
                     }
                     
@@ -727,7 +753,7 @@ public class SheetsToMsbt
                     LabelSlotCount = slotCount,
                     BytesPerAttribute = bytesPerAttribute,
                     UsesAttributeStrings = usesAttributeString,
-                    ATO1Numbers = ato1,
+                    AttributeOffsets = ato1,
                     HasLBL1 = true,
                     HasATR1 = hasAtr1,
                     HasTSY1 = hasTsy1,
@@ -797,7 +823,7 @@ public class SheetsToMsbt
                     throw new InvalidDataException("Can't parse attributes: no closing quote");
                 }
 
-                value = cell[..FindFirstIndexWhereNotAfter(cell, '\\', '"')];
+                value = cell[..(FindFirstIndexWhereNotAfter(cell, '\\', '"', 1) + 1)];
                 cell = cell[value.Length..];
                 value = value[1..(value.Length - 1)];
                 value = value.Replace("\\\"", "\"");
@@ -835,9 +861,9 @@ public class SheetsToMsbt
         return dict;
     }
 
-    static int FindFirstIndexWhereNotAfter(string str, char first, char second)
+    static int FindFirstIndexWhereNotAfter(string str, char first, char second, int startIndex = 0)
     {
-        for (int i = 0; i < str.Length; i++)
+        for (int i = startIndex; i < str.Length; i++)
         {
             if (str[i] == second)
             {

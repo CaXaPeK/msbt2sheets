@@ -199,7 +199,7 @@ public class Tag
                     {
                         if (!isBaseMsbp)
                         {
-                            Console.WriteLine($"Warning: Couldn't humanify the tag {Stringify(options, tagOrigin, encoding)} on {tagOrigin}.");
+                            //Console.WriteLine($"Warning: Couldn't humanify the tag {Stringify(options, tagOrigin, encoding)} on {tagOrigin}.");
                         }
 
                         try

@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Text;
+using Google.Apis.Sheets.v4.Data;
 using Msbt2Sheets.Lib.Formats.FileComponents;
 using Msbt2Sheets.Lib.Utils;
 
@@ -23,7 +24,7 @@ public class MSBT : GeneralFile
     
     public uint LabelSlotCount { get; set; }
 
-    public List<int> ATO1Numbers = new();
+    public List<int> AttributeOffsets = new();
 
     public Header Header = new();
     
@@ -70,7 +71,7 @@ public class MSBT : GeneralFile
                     break;
                 case "ATR1":
                     HasATR1 = true;
-                    atr1 = new(reader, sectionSize, this);
+                    atr1 = new(reader, ato1.Offsets, sectionSize, Header.Encoding, msbp);
                     break;
                 case "TSY1":
                     HasTSY1 = true;
@@ -106,28 +107,8 @@ public class MSBT : GeneralFile
 
         if (HasATO1)
         {
-            ATO1Numbers = ato1.Numbers;
+            AttributeOffsets = ato1.Offsets;
         }
-    }
-
-    public void PrintAllMessages()
-    {
-        Console.WriteLine($"{Language} {FileName}.msbt");
-        foreach (var Message in Messages)
-        {
-            Console.WriteLine($"[{Message.Key}] {Message.Value.Text}");
-        }
-    }
-
-    public List<string> MessagesToStringList()
-    {
-        List<string> strings = new();
-        foreach (var Message in Messages)
-        {
-            strings.Add($"[{Message.Key}] {Message.Value.Text}");
-        }
-
-        return strings;
     }
 
     public byte[] Compile(ParsingOptions options, MSBP? msbp = null)
@@ -146,7 +127,7 @@ public class MSBT : GeneralFile
         
         if (HasATO1)
         {
-            ATO1.Write(writer, ATO1Numbers);
+            ATO1.Write(writer, AttributeOffsets);
             sectionCount++;
         }
         
@@ -278,17 +259,17 @@ public class MSBT : GeneralFile
     }
     internal class ATO1
     {
-        public List<int> Numbers { get; set; }
+        public List<int> Offsets { get; set; }
 
         public ATO1() {}
 
         public ATO1(FileReader reader, long sectionSize)
         {
-            Numbers = new();
+            Offsets = new();
             
             for (long i = 0; i < sectionSize / 4; i++)
             {
-                Numbers.Add(reader.ReadInt32());
+                Offsets.Add(reader.ReadInt32());
             }
         }
 
@@ -309,20 +290,124 @@ public class MSBT : GeneralFile
     }
     internal class ATR1
     {
-        public List<MessageAttribute> Attributes { get; set; }
+        public List<Dictionary<string, object>> AttributeDicts = new();
 
         public ATR1() {}
 
-        public ATR1(FileReader reader, long sectionSize, MSBT msbt)
+        public ATR1(FileReader reader, List<int> attributeOffsets, uint sectionSize, Encoding encoding, MSBP msbp = null)
         {
-            Attributes = new();
-            
             long startPosition = reader.Position;
+            long attrDataStartPosition = startPosition + 8;
             uint attributeCount = reader.ReadUInt32();
-            uint bytesPerAttribute = reader.ReadUInt32();
-            bool hasStrings = sectionSize > 8 + attributeCount * bytesPerAttribute;
+            int bytesPerAttribute = reader.ReadInt32();
+
+            bool hasStringAttributes = sectionSize - 8 > attributeCount * bytesPerAttribute;
+            long stringAttributesStartPosition = startPosition + 8 + attributeCount * bytesPerAttribute;
+            List<string> stringAttributes = new();
+
+            for (uint i = 0; i < attributeCount; i++)
+            {
+                Dictionary<string, object> attrDict = new();
+                long attrsStartPosition = attrDataStartPosition + i * bytesPerAttribute;
+                
+                if (msbp != null)
+                {
+                    if (attributeOffsets.Count > 0)
+                    {
+                        for (int j = 0; j < attributeOffsets.Count; j++)
+                        {
+                            int offset = attributeOffsets[j];
+                            if (offset == -1)
+                            {
+                                continue;
+                            }
+
+                            long attrStartPosition = attrsStartPosition + offset;
+                            AttributeInfo attrInfo = msbp.AttributeInfos[j];
+
+                            attrDict.Add(attrInfo.Name, attrInfo.Read(reader, attrStartPosition, startPosition, encoding));
+                        }
+                    }
+                    else
+                    {
+                        int attrNum = 0;
+                        while (reader.Position - attrsStartPosition < bytesPerAttribute)
+                        {
+                            AttributeInfo attrInfo = msbp.AttributeInfos[attrNum];
+                            attrDict.Add(attrInfo.Name, attrInfo.Read(reader, reader.Position, startPosition, encoding));
+                        }
+                    }
+                }
+
+                if (msbp == null)
+                {
+                    if (attributeOffsets.Count > 0)
+                    {
+                        List<int> attrIds = new();
+                        for (int j = 0; j < attributeOffsets.Count; j++)
+                        {
+                            int offset = attributeOffsets[j];
+                            if (offset != -1)
+                            {
+                                attrIds.Add(j);
+                            }
+                        }
+
+                        for (int j = 0; j < attrIds.Count; j++)
+                        {
+                            int attrSize = j < attrIds.Count - 1
+                                ? attributeOffsets[attrIds[j + 1]] - attributeOffsets[attrIds[j]]
+                                : bytesPerAttribute - attributeOffsets[attrIds[j]];
+
+                            byte[] attrBytes = reader.ReadBytes(attrSize);
+                            string attrBytesStringified = BitConverter.ToString(attrBytes);
+                        
+                            attrDict.Add($"Attribute_{attrIds[j]}", attrBytesStringified);
+                        }
+                    }
+                    else
+                    {
+                        byte[] attrBytes = reader.ReadBytes(bytesPerAttribute);
+                        attrDict.Add("Attributes", attrBytes);
+                    }
+
+                    if (hasStringAttributes)
+                    {
+                        if (stringAttributes.Count == 0)
+                        {
+                            reader.JumpTo(stringAttributesStartPosition);
+                            while (reader.Position < startPosition + sectionSize)
+                            {
+                                stringAttributes.Add(reader.ReadTerminatedString(encoding));
+                            }
+                        }
+
+                        int stringAttributesPerMessage = stringAttributes.Count / (int)attributeCount;
+                        List<string> curStringAttributes = new();
+                        for (int j = 0; j < stringAttributesPerMessage; j++)
+                        {
+                            curStringAttributes.Add(stringAttributes[(int)i * stringAttributesPerMessage + j]);
+                        }
+
+                        /*string curStringAttributesStringified = "";
+                        foreach (var str in curStringAttributes)
+                        {
+                            string quotedStr = GeneralUtils.AddQuotesToString(str);
+                            string addedStr = curStringAttributesStringified == "" ? quotedStr : $", {quotedStr}";
+                            curStringAttributesStringified += addedStr;
+                        }
+                        curStringAttributesStringified += ';';*/
+                        
+                        attrDict.Add("StringAttributes", curStringAttributes);
+                    }
+                }
+                
+                AttributeDicts.Add(attrDict);
+            }
             
-            msbt.BytesPerAttribute = bytesPerAttribute;
+            //bool hasStrings = sectionSize > 8 + attributeCount * bytesPerAttribute;
+            
+            /*msbt.BytesPerAttribute = bytesPerAttribute;
             msbt.UsesAttributeStrings = hasStrings;
             
             List<byte[]> attributeByteData = new();
@@ -338,7 +423,7 @@ public class MSBT : GeneralFile
                     string stringData = reader.ReadTerminatedString(msbt.Header.Encoding);
                     Attributes.Add(new(byteData, stringData));
                     
-                    /*if ((BitConverter.IsLittleEndian && reader.Endianness == Endianness.BigEndian) ||
+                    if ((BitConverter.IsLittleEndian && reader.Endianness == Endianness.BigEndian) ||
                         (!BitConverter.IsLittleEndian && reader.Endianness == Endianness.LittleEndian))
                     {
                         Array.Reverse(byteData);
@@ -347,13 +432,13 @@ public class MSBT : GeneralFile
                     uint stringOffset = BitConverter.ToUInt32(byteData[..4]);
                     string stringData = reader.ReadTerminatedStringAt(startPosition + stringOffset);
                 
-                    Attributes.Add(new(byteData, stringData));*/
+                    Attributes.Add(new(byteData, stringData));
                 }
                 else
                 {
                     Attributes.Add(new(byteData));
                 }
-            }
+            }*/
         }
 
         public static void Write(FileWriter writer, Message[] messages, uint bytesPerAttribute, bool usesAttributeStrings)
@@ -456,13 +541,14 @@ public class MSBT : GeneralFile
                 Message message = new();
                 if (hasATR1)
                 {
-                    if (i < atr1.Attributes.Count)
+                    if (i < atr1.AttributeDicts.Count)
                     {
-                        message.Attribute = atr1.Attributes[(int)i];
+                        message.Attributes = atr1.AttributeDicts[(int)i];
                     }
                     else
                     {
-                        throw new InvalidDataException("Numbers of ATR1 and TXT2 entries don't match!");
+                        message.Attributes = new Dictionary<string, object>();
+                        //throw new InvalidDataException("Numbers of ATR1 and TXT2 entries don't match!");
                     }
                 }
                 if (hasTSY1)
@@ -496,7 +582,14 @@ public class MSBT : GeneralFile
                     switch (character)
                     {
                         case 0x0E:
-                            buffer.AddRange(new byte[]{0x0, 0xE});
+                            if (reader.Endianness == Endianness.LittleEndian)
+                            {
+                                buffer.AddRange(new byte[]{0xE, 0x0});
+                            }
+                            else
+                            {
+                                buffer.AddRange(new byte[]{0x0, 0xE});
+                            }
                             ushort tagGroup;
                             ushort tagType;
                             ushort argumentsLength;
@@ -535,7 +628,14 @@ public class MSBT : GeneralFile
                             break;
                         
                         case 0x0F:
-                            buffer.AddRange(new byte[]{0x0, 0xF});
+                            if (reader.Endianness == Endianness.LittleEndian)
+                            {
+                                buffer.AddRange(new byte[]{0xF, 0x0});
+                            }
+                            else
+                            {
+                                buffer.AddRange(new byte[]{0x0, 0xF});
+                            }
                             ushort tagEndGroup;
                             ushort tagEndType;
 
@@ -704,6 +804,19 @@ public class MSBT : GeneralFile
                                 case '>':
                                     writer.WriteString(">", encoding);
                                     j++;
+                                    break;
+                                case 'x':
+                                    if (j + 3 < text.Length)
+                                    {
+                                        string strByte = $"{text[j + 2]}{text[j + 3]}";
+                                        byte b = Convert.FromHexString(strByte)[0];
+                                        writer.WriteByte(b);
+                                        j += 3;
+                                    }
+                                    else
+                                    {
+                                        writer.WriteString("\\", encoding);
+                                    }
                                     break;
                                 case '\\':
                                     writer.WriteString("\\", encoding);

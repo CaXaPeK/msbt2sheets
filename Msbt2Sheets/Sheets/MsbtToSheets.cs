@@ -24,7 +24,8 @@ public class MsbtToSheets
         ConsoleUtils.CheckDirectory(languagesPath);
 
         List<string> internalLangNames = ReorderLanguages(languagesPath, fileOptions);
-        List<string> sheetLangNames = internalLangNames;//RenameLanguages(internalLangNames);
+        //List<string> sheetLangNames = internalLangNames;
+        List<string> sheetLangNames = RenameLanguages(internalLangNames, fileOptions);
     
         MSBP msbp = ParseMSBP(fileOptions);
         ParsingOptions options = SetParsingOptions(fileOptions, msbp);
@@ -32,7 +33,7 @@ public class MsbtToSheets
         options.UnnecessaryPathPrefix = FindUnnecessaryPathPrefix($"{languagesPath}/{internalLangNames[0]}/", "");
         List<List<MSBT>> languages = ParseAllMSBTs(languagesPath, internalLangNames, options, msbp);
 
-        Spreadsheet spreadsheet = LanguagesToSpreadsheet(languages, sheetLangNames, options, fileOptions, msbp);
+        Spreadsheet spreadsheet = LanguagesToSpreadsheet(languages, internalLangNames, sheetLangNames, options, fileOptions, msbp);
 
         if (fileOptions.ContainsKey("gcnTtydSpreadsheetId"))
         {
@@ -54,9 +55,9 @@ public class MsbtToSheets
             internalLangNames.Add(Path.GetFileName(path));
         }
 
-        if (fileOptions.ContainsKey("langs"))
+        if (fileOptions.ContainsKey("internalLangs"))
         {
-            internalLangNames = fileOptions["langs"].Split('|').ToList();
+            internalLangNames = fileOptions["internalLangs"].Split('|').ToList();
             return internalLangNames;
         }
         
@@ -133,8 +134,21 @@ public class MsbtToSheets
         return internalLangNames;
     }
     
-    static List<string> RenameLanguages(List<string> internalLangNames)
+    static List<string> RenameLanguages(List<string> internalLangNames, Dictionary<string, string> fileOptions)
     {
+        if (fileOptions.ContainsKey("uiLangs"))
+        {
+            List<string> uiLangs = fileOptions["uiLangs"].Split('|').ToList();
+            if (uiLangs.Count == 0)
+            {
+                return internalLangNames;
+            }
+            if (uiLangs.Count == internalLangNames.Count)
+            {
+                return uiLangs;
+            }
+        }
+        
         Console.WriteLine("\nDo you want to give these languages alternative names for the spreadsheet?\n\n1 - Yes\n2 - No");
         string answer = Console.ReadLine();
         if (answer == "1")
@@ -148,6 +162,12 @@ public class MsbtToSheets
                 var newName = Console.ReadLine();
                 if (newName != "")
                 {
+                    if (newNames.Contains(newName))
+                    {
+                        Console.WriteLine($"{newName} language already exists! Press Enter.");
+                        i--;
+                        continue;
+                    }
                     newNames.Add(newName);
                 }
                 else
@@ -155,7 +175,7 @@ public class MsbtToSheets
                     newNames.Add(internalLangNames[i]);
                 }
             }
-        
+
             return newNames;
         }
     
@@ -367,7 +387,7 @@ public class MsbtToSheets
         return languages;
     }
     
-    static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> sheetLangNames, ParsingOptions options, Dictionary<string, string> fileOptions, MSBP? msbp = null)
+    static Spreadsheet LanguagesToSpreadsheet(List<List<MSBT>> langs, List<string> internalLangNames, List<string> sheetLangNames, ParsingOptions options, Dictionary<string, string> fileOptions, MSBP? msbp = null)
     {
         Console.Clear();
         Console.WriteLine("Enter a name for your spreadsheet:");
@@ -515,9 +535,9 @@ public class MsbtToSheets
                 });
             }
 
-            for (int i = 0; i < options.TransLangNames.Count; i++)
+            for (int i = 0; i < options.TransLangSheetNames.Count; i++)
             {
-                string transLangName = options.TransLangNames[i];
+                string transLangName = options.TransLangSheetNames[i];
                 
                 headerRow.Values.Add(new CellData()
                 {
@@ -711,8 +731,8 @@ public class MsbtToSheets
         }
         
         AddInternalMSBTDataToSpreadsheet(ref spreadsheet, langs[0]);
-        AddSettingsToSpreadsheet(ref spreadsheet, options);
-        AddStatsToSpreadsheet(ref spreadsheet, sheetLangNames, options.TransLangNames);
+        AddSettingsToSpreadsheet(ref spreadsheet, options, internalLangNames, sheetLangNames);
+        AddStatsToSpreadsheet(ref spreadsheet, sheetLangNames, options.TransLangSheetNames);
 
         return spreadsheet;
     }
@@ -944,6 +964,15 @@ public class MsbtToSheets
         {
             options.TransLangNames.AddRange(fileOptions["newLangs"].Split('|'));
             options.TransLangPaths.AddRange(fileOptions["newLangsPaths"].Split('|'));
+            
+            if (fileOptions.ContainsKey("newLangsSheetNames"))
+            {
+                options.TransLangSheetNames.AddRange(fileOptions["newLangsSheetNames"].Split('|'));
+            }
+            else
+            {
+                options.TransLangSheetNames = options.TransLangSheetNames;
+            }
             return;
         }
     
@@ -955,7 +984,18 @@ public class MsbtToSheets
             Console.Clear();
             Console.WriteLine($"Type the name of the {i + 1}th language (this is how it would appear in the sheets):");
             string name = Console.ReadLine();
-            options.TransLangNames.Add(name);
+            options.TransLangSheetNames.Add(name);
+            
+            Console.WriteLine($"\nDo you want it to have a different folder name when converting back to an MSBT folder? If yes, type it, if not, type nothing.");
+            string sheetName = Console.ReadLine();
+            if (sheetName != "")
+            {
+                options.TransLangNames.Add(sheetName);
+            }
+            else
+            {
+                options.TransLangNames.Add(name);
+            }
         
             Console.WriteLine("\nDo you have an unfinished translation for this language? We could incorporate it into the sheets. If so, type the path to the language folder:");
             string path = Console.ReadLine();
@@ -1549,7 +1589,7 @@ public class MsbtToSheets
             if (baseLang[0].HasATO1)
             {
                 string ato1String = "";
-                foreach (var num in msbt.ATO1Numbers)
+                foreach (var num in msbt.AttributeOffsets)
                 {
                     ato1String += $"{num}, ";
                 }
@@ -1691,7 +1731,7 @@ public class MsbtToSheets
         return new CellFormat();
     }
 
-    static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions options)
+    static void AddSettingsToSpreadsheet(ref Spreadsheet spreadsheet, ParsingOptions options, List<string> internalLangNames, List<string> sheetLangNames)
     {
         Sheet sheet = new Sheet()
         {
@@ -1716,33 +1756,33 @@ public class MsbtToSheets
         RowData headerRow = new()
         {
             Values = StringListToCellData(
-                new List<string>(){"Setting", "Value"},
+                new List<string>{"Setting", "Value"},
                 Constants.HEADER_CELL_FORMAT
             )
         };
         
         sheet.Data[0].RowData.Add(headerRow);
         
-        sheet.Data[0].RowData.Add(new RowData()
+        sheet.Data[0].RowData.Add(new RowData
         {
-            Values = new List<CellData>()
+            Values = new List<CellData>
             {
-                new CellData()
+                new()
                 {
-                    UserEnteredValue = new ExtendedValue()
+                    UserEnteredValue = new ExtendedValue
                     {
                         StringValue = "Add linebreaks after pagebreaks"
                     },
-                    UserEnteredFormat = new CellFormat()
+                    UserEnteredFormat = new CellFormat
                     {
                         WrapStrategy = "WRAP",
-                        TextFormat = new TextFormat()
+                        TextFormat = new TextFormat
                         {
                             Bold = true
                         }
                     }
                 },
-                new CellData()
+                new()
                 {
                     UserEnteredValue = new ExtendedValue()
                     {
@@ -1758,7 +1798,7 @@ public class MsbtToSheets
             {
                 Values = new List<CellData>()
                 {
-                    new CellData()
+                    new()
                     {
                         UserEnteredValue = new ExtendedValue()
                         {
@@ -1773,7 +1813,7 @@ public class MsbtToSheets
                             }
                         }
                     },
-                    new CellData()
+                    new()
                     {
                         UserEnteredValue = new ExtendedValue()
                         {
@@ -1788,7 +1828,7 @@ public class MsbtToSheets
         {
             Values = new List<CellData>()
             {
-                new CellData()
+                new()
                 {
                     UserEnteredValue = new ExtendedValue()
                     {
@@ -1803,7 +1843,7 @@ public class MsbtToSheets
                         }
                     }
                 },
-                new CellData()
+                new()
                 {
                     UserEnteredValue = new ExtendedValue()
                     {
@@ -1812,6 +1852,76 @@ public class MsbtToSheets
                 }
             }
         });
+
+        for (int i = 0; i < sheetLangNames.Count; i++)
+        {
+            if (sheetLangNames[i] != internalLangNames[i])
+            {
+                sheet.Data[0].RowData.Add(new RowData
+                {
+                    Values = new List<CellData>
+                    {
+                        new()
+                        {
+                            UserEnteredValue = new ExtendedValue
+                            {
+                                StringValue = $"{sheetLangNames[i]} internal name"
+                            },
+                            UserEnteredFormat = new CellFormat
+                            {
+                                WrapStrategy = "WRAP",
+                                TextFormat = new TextFormat
+                                {
+                                    Bold = true
+                                }
+                            }
+                        },
+                        new()
+                        {
+                            UserEnteredValue = new ExtendedValue
+                            {
+                                StringValue = internalLangNames[i]
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        for (int i = 0; i < options.TransLangNames.Count; i++)
+        {
+            if (options.TransLangNames[i] != options.TransLangSheetNames[i])
+            {
+                sheet.Data[0].RowData.Add(new RowData
+                {
+                    Values = new List<CellData>
+                    {
+                        new()
+                        {
+                            UserEnteredValue = new ExtendedValue
+                            {
+                                StringValue = $"{options.TransLangSheetNames[i]} internal name"
+                            },
+                            UserEnteredFormat = new CellFormat
+                            {
+                                WrapStrategy = "WRAP",
+                                TextFormat = new TextFormat
+                                {
+                                    Bold = true
+                                }
+                            }
+                        },
+                        new()
+                        {
+                            UserEnteredValue = new ExtendedValue
+                            {
+                                StringValue = options.TransLangNames[i]
+                            }
+                        }
+                    }
+                });
+            }
+        }
         
         sheet.Properties.GridProperties.RowCount = sheet.Data[0].RowData.Count;
         spreadsheet.Sheets.Insert(0, sheet);

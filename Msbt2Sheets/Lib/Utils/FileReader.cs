@@ -85,6 +85,18 @@ public class FileReader : IDisposable
         return ReadByte(length);
     }
     
+    public sbyte ReadSByte(int length = 1)
+    {
+        byte[] bytes = ReadBytes(length, 1);
+        return (sbyte)bytes[0];
+    }
+    
+    public sbyte ReadSByteAt(long position, int length = 1)
+    {
+        Position = position;
+        return ReadSByte(length);
+    }
+    
     public string ReadString(int length)
     {
         return ReadString(length, Encoding.UTF8);
@@ -111,9 +123,18 @@ public class FileReader : IDisposable
     {
         return ReadTerminatedString(Encoding.UTF8, maxLength);
     }
+    
     public string ReadTerminatedStringAt(long position, int maxLength = -1)
     {
         return ReadTerminatedStringAt(position, Encoding.UTF8, maxLength);
+    }
+    
+    public string PeekTerminatedString(long position, Encoding encoding, int maxLength = -1)
+    {
+        long prevPosition = Position;
+        string result = ReadTerminatedStringAt(position, encoding, maxLength);
+        JumpTo(prevPosition);
+        return result;
     }
 
     public string ReadTerminatedString(Encoding encoding, int maxLength = -1)
@@ -129,28 +150,6 @@ public class FileReader : IDisposable
             }
             bytes.AddRange(charBytes);
         }
-        
-        /*int terminatorLength = encoding.GetByteCount("\0");
-
-        int nullBytesCount = 0;
-        while (bytes.Count != maxLength && nullBytesCount < terminatorLength)
-        {
-            byte b = _reader.ReadByte();
-            nullBytesCount = b == 0x00 ? nullBytesCount + 1 : 0;
-            bytes.Add(b);
-        }
-
-        if (bytes.Count == maxLength)
-        {
-            return encoding.GetString(bytes.ToArray()).TrimEnd('\0');
-        }
-
-        for (int i = 0; i < terminatorLength - 1; ++i)
-        {
-            bytes.Add(0x00);
-        }
-
-        return encoding.GetString(bytes.ToArray())[..^1].TrimEnd('\0');*/
     }
     
     public string ReadTerminatedStringAt(long position, Encoding encoding, int maxLength = -1)
@@ -201,6 +200,28 @@ public class FileReader : IDisposable
     {
         Position = position;
         return ReadUInt32(length);
+    }
+    
+    public float ReadSingle(int length = 4)
+    {
+        byte[] bytes = ReadBytes(length, 4, Endianness == Endianness.BigEndian);
+        return BitConverter.ToSingle(bytes, 0);
+    }
+    public float ReadSingleAt(long position, int length = 4)
+    {
+        Position = position;
+        return ReadSingle(length);
+    }
+    
+    public double ReadDouble(int length = 8)
+    {
+        byte[] bytes = ReadBytes(length, 8, Endianness == Endianness.BigEndian);
+        return BitConverter.ToSingle(bytes, 0);
+    }
+    public double ReadDoubleAt(long position, int length = 8)
+    {
+        Position = position;
+        return ReadDouble(length);
     }
 
     #endregion

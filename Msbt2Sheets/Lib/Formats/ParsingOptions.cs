@@ -24,6 +24,8 @@ public class ParsingOptions
     public string ColorIdentification = "By RGBA bytes";
     
     public List<string> TransLangNames = new();
+
+    public List<string> TransLangSheetNames = new();
     
     public List<string> TransLangPaths = new();
 
@@ -53,6 +55,7 @@ public class ParsingOptions
     public int MainLangColumnId = 1;
 
     public List<string> UiLangNames = new();
+    public List<string> InternalLangNames = new();
     public List<string> OutputLangNames = new();
 
     public ParsingOptions()
