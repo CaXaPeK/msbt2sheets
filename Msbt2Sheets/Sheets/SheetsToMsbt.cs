@@ -544,8 +544,6 @@ public class SheetsToMsbt
             byte version;
             Endianness byteOrder;
             EncodingType encoding;
-            bool hasAto1;
-            List<int> ato1 = new();
             
             if (!options.NoInternalDataSheet)
             {
@@ -562,11 +560,6 @@ public class SheetsToMsbt
                 byteOrder = internalDataRow[3] == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
                 Enum.TryParse(internalDataRow[4], out EncodingType encodingTemp);
                 encoding = encodingTemp;
-                hasAto1 = spreadsheet.Sheets[internalSheetId].Properties.GridProperties.ColumnCount == 6;
-                if (hasAto1)
-                {
-                    ato1 = CommaSpaceNumbersToList(internalDataRow[5]);
-                }
             }
             else
             {
@@ -579,8 +572,6 @@ public class SheetsToMsbt
                 version = options.GlobalVersion;
                 byteOrder = options.GlobalEndianness;
                 encoding = options.GlobalEncodingType;
-                hasAto1 = options.GlobalAto1.Count > 0;
-                ato1 = options.GlobalAto1;
             }
             
             for (int j = 0; j < options.UiLangNames.Count; j++)
@@ -591,7 +582,6 @@ public class SheetsToMsbt
                 
                 var hasAtr1 = false;
                 var hasTsy1 = false;
-                var usesAttributeString = false;
                 var attributeColumnId = -1;
                 
                 if (headerRow.Contains("Attributes"))
@@ -611,11 +601,11 @@ public class SheetsToMsbt
                     }
                 }
 
-                if (sheet.Properties.GridProperties.RowCount == 1 && attributeColumnId != -1)
+                /*if (sheet.Properties.GridProperties.RowCount == 1 && attributeColumnId != -1)
                 {
                     hasAtr1 = true;
                     hasTsy1 = true;
-                }
+                }*/
 
                 bool noFileFlag = false;
                 var messages = new Dictionary<object, Message>();
@@ -648,8 +638,7 @@ public class SheetsToMsbt
                         hasTranslatedMessages = true;
                     }
                     
-                    var attributeByteData = new byte[]{};
-                    var attributeString = "";
+                    var attributeObjectDictionary = new Dictionary<string, object>();
                     var styleId = -1;
                     
                     if (attributeColumnId != -1)
@@ -687,23 +676,8 @@ public class SheetsToMsbt
                         {
                             hasAtr1 = true;
 
-                            if (attributeDict.ContainsKey("StringAttribute"))
-                            {
-                                usesAttributeString = true;
-                                attributeString = attributeDict["StringAttribute"];
-                                attributeDict.Remove("StringAttribute");
-                            }
-                            
-                            if (attributeDict.Count == 1 && attributeDict.ContainsKey("Attributes"))
-                            {
-                                attributeByteData = Convert.FromHexString(attributeDict["Attributes"].Replace("-", ""));
-                                attributeDict.Remove("Attributes");
-                            }
-                            else
-                            {
-                                attributeByteData = MessageAttribute.KeysAndValuesToBytes(attributeDict.Keys.ToList(),
-                                    attributeDict.Values.ToList(), msbp);
-                            }
+                            attributeObjectDictionary = StringDictToObjectDict(attributeDict,
+                                msbp != null ? msbp.AttributeInfos : new());
                         }
                     }
                     
@@ -711,27 +685,8 @@ public class SheetsToMsbt
                     {
                         Text = text,
                         StyleId = styleId,
-                        Attribute = new MessageAttribute
-                        {
-                            ByteData = attributeByteData,
-                            StringData = attributeString
-                        }
+                        Attributes = attributeObjectDictionary
                     });
-                }
-
-                uint bytesPerAttribute = 0;
-                if (messages.Count != 0)
-                {
-                    bytesPerAttribute = (uint)messages.First().Value.Attribute.ByteData.Length;
-                }
-                foreach (var message in messages)
-                {
-                    int curLength = message.Value.Attribute.ByteData.Length;
-                    if (curLength != bytesPerAttribute)
-                    {
-                        throw new InvalidDataException(
-                            $"Attribute lengths of messages \"{messages.First().Key}\" and \"{message.Key}\" mismatch ({bytesPerAttribute} and {curLength})");
-                    }
                 }
 
                 if (options.SkipLangIfNotTranslated && !hasTranslatedMessages)
@@ -751,13 +706,10 @@ public class SheetsToMsbt
                         EncodingType = encoding
                     },
                     LabelSlotCount = slotCount,
-                    BytesPerAttribute = bytesPerAttribute,
-                    UsesAttributeStrings = usesAttributeString,
-                    AttributeOffsets = ato1,
                     HasLBL1 = true,
                     HasATR1 = hasAtr1,
                     HasTSY1 = hasTsy1,
-                    HasATO1 = hasAto1,
+                    HasATO1 = hasAtr1,
                     Messages = messages
                 });
             }
@@ -765,7 +717,79 @@ public class SheetsToMsbt
 
         return langs;
     }
-    
+
+    static Dictionary<string, object> StringDictToObjectDict(Dictionary<string, string> strDict,
+        List<AttributeInfo> attrInfos)
+    {
+        Dictionary<string, object> dict = new();
+
+        foreach (var strDictEntry in strDict)
+        {
+            object value = null;
+            
+            if (strDictEntry.Key.StartsWith("Attribute_"))
+            {
+                value = Convert.FromHexString(strDictEntry.Value.Replace("-", ""));
+            }
+            
+            if (strDictEntry.Key.StartsWith("StringAttributes"))
+            {
+                List<string> strAttrs = strDictEntry.Value.Split(", ").ToList();
+                for (int i = 0; i < strAttrs.Count; i++)
+                {
+                    strAttrs[i] = GeneralUtils.UnquoteString(strAttrs[i]);
+                }
+
+                value = strAttrs;
+            }
+            
+            AttributeInfo attrInfo = attrInfos.FirstOrDefault(x => x.Name == strDictEntry.Key);
+            if (attrInfo != null)
+            {
+                switch (attrInfo.Type)
+                {
+                    case ParamType.UInt8:
+                        value = Convert.ToByte(strDictEntry.Value);
+                        break;
+                    case ParamType.UInt16:
+                        value = Convert.ToUInt16(strDictEntry.Value);
+                        break;
+                    case ParamType.UInt32:
+                        value = Convert.ToUInt32(strDictEntry.Value);
+                        break;
+                    case ParamType.Int8:
+                        value = Convert.ToSByte(strDictEntry.Value);
+                        break;
+                    case ParamType.Int16:
+                        value = Convert.ToInt16(strDictEntry.Value);
+                        break;
+                    case ParamType.Int32:
+                        value = Convert.ToInt32(strDictEntry.Value);
+                        break;
+                    case ParamType.Float:
+                        value = Convert.ToSingle(strDictEntry.Value);
+                        break;
+                    case ParamType.Double:
+                        value = Convert.ToDouble(strDictEntry.Value);
+                        break;
+                    case ParamType.String:
+                        value = strDictEntry.Value;
+                        break;
+                    case ParamType.List:
+                        value = strDictEntry.Value;
+                        break;
+                    default:
+                        throw new InvalidDataException(
+                            $"Attribute {attrInfo.Name} has an invalid type of {(byte) attrInfo.Type}");
+                }
+            }
+            
+            dict.Add(strDictEntry.Key, value);
+        }
+        
+        return dict;
+    }
+
     static List<int> GetMsbtSheetIds(Spreadsheet spreadsheet, ParsingOptions options)
     {
         List<int> ids = new();
@@ -825,9 +849,9 @@ public class SheetsToMsbt
 
                 value = cell[..(FindFirstIndexWhereNotAfter(cell, '\\', '"', 1) + 1)];
                 cell = cell[value.Length..];
-                value = value[1..(value.Length - 1)];
+                /*value = value[1..(value.Length - 1)];
                 value = value.Replace("\\\"", "\"");
-                value = value.Replace("\\\\", "\\");
+                value = value.Replace("\\\\", "\\");*/
                 
                 if (cell.Count(x => x == ';') == 0)
                 {

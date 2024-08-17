@@ -18,13 +18,13 @@ public class MSBT : GeneralFile
     public bool HasATR1 = false;
     public bool HasTSY1 = false;
 
-    public bool UsesAttributeStrings { get; set; }
+    //public bool UsesAttributeStrings { get; set; }
 
-    public uint BytesPerAttribute { get; set; }
+    //public uint BytesPerAttribute { get; set; }
     
     public uint LabelSlotCount { get; set; }
 
-    public List<int> AttributeOffsets = new();
+    public int MsbpAttributeCount = -1; //needed to recreate ATO1 if there's no MSBP
 
     public Header Header = new();
     
@@ -71,7 +71,7 @@ public class MSBT : GeneralFile
                     break;
                 case "ATR1":
                     HasATR1 = true;
-                    atr1 = new(reader, ato1.Offsets, sectionSize, Header.Encoding, msbp);
+                    atr1 = new(reader, ato1.Offsets, sectionSize, Header.Encoding, msbp != null ? msbp.AttributeInfos : new());
                     break;
                 case "TSY1":
                     HasTSY1 = true;
@@ -107,7 +107,26 @@ public class MSBT : GeneralFile
 
         if (HasATO1)
         {
-            AttributeOffsets = ato1.Offsets;
+            MsbpAttributeCount = ato1.Offsets.Count;
+        }
+        else if (msbp != null)
+        {
+            MsbpAttributeCount = msbp.AttributeInfos.Count;
+        }
+        else if (atr1.AttributeDicts.Count > 0)
+        {
+            var attrDict = atr1.AttributeDicts.First();
+            if (!attrDict.ContainsKey("Attributes"))
+            {
+                if (attrDict.ContainsKey("StringAttributes"))
+                {
+                    MsbpAttributeCount = attrDict.Count - 1;
+                }
+                else
+                {
+                    MsbpAttributeCount = attrDict.Count;
+                }
+            }
         }
     }
 
@@ -127,13 +146,42 @@ public class MSBT : GeneralFile
         
         if (HasATO1)
         {
-            ATO1.Write(writer, AttributeOffsets);
+            try
+            {
+                if (Messages.Count > 0)
+                {
+                    try
+                    {
+                        ATO1.Write(writer, Messages.First().Value.Attributes, msbp != null ? msbp.AttributeInfos : new(), MsbpAttributeCount);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new Exception(e.Message);
+                    }
+                }
+                else
+                {
+                    throw new Exception("No messages."); //how can there be an ATO1 section when there's no messages?!?!?
+                }
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Can't build an ATO1 section for {FileName}: {e.Message}.");
+            }
             sectionCount++;
         }
         
         if (HasATR1)
         {
-            ATR1.Write(writer, Messages.Values.ToArray(), BytesPerAttribute, UsesAttributeStrings);
+            try
+            {
+                ATR1.Write(writer, Messages.Values.ToArray(), msbp != null ? msbp.AttributeInfos : new(), Header.Encoding);
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Can't build an ATR1 section for {FileName}: {e.Message}.");
+            }
+            
             sectionCount++;
         }
         
@@ -273,15 +321,56 @@ public class MSBT : GeneralFile
             }
         }
 
-        public static void Write(FileWriter writer, List<int> numbers)
+        public static void Write(FileWriter writer, Dictionary<string, object> attrDict, List<AttributeInfo> attrInfos, int msbpAttrCount)
         {
             writer.WriteString("ATO1", Encoding.ASCII);
             long sizePosition = writer.Position;
             writer.Pad(0xC);
 
-            foreach (var number in numbers)
+            int unnamedAttrCount = attrDict.Count(x => x.Key.StartsWith("Attribute_"));
+            List<int> attrOffsets = Enumerable.Repeat(-1, attrInfos.Count).ToList();
+            int curOffset = 0;
+            
+            if (attrDict.ContainsKey("Attributes"))
             {
-                writer.WriteInt32(number);
+                throw new Exception("No distinct attributes.");
+            }
+            
+            if (!attrDict.ContainsKey("Attributes") && unnamedAttrCount == 0)
+            {
+                foreach (var attr in attrDict)
+                {
+                    int attrId = attrInfos.FindIndex(x => x.Name == attr.Key);
+                    if (attrId == -1)
+                    {
+                        throw new Exception($"Can't find attribute \"{attr.Key}\".");
+                    }
+
+                    AttributeInfo attrInfo = attrInfos[attrId];
+                    attrOffsets[attrId] = curOffset;
+                    curOffset += GeneralUtils.GetTypeSize(attrInfo.Type);
+                }
+            }
+
+            if (unnamedAttrCount > 0)
+            {
+                foreach (var attrEntry in attrDict)
+                {
+                    if (attrEntry.Key.StartsWith("Attribute_"))
+                    {
+                        int attrId = Convert.ToInt32(attrEntry.Key[(attrEntry.Key.IndexOf('_') + 1)..]);
+                        if (attrEntry.Value is byte[] byteAttr)
+                        {
+                            attrOffsets[attrId] = curOffset;
+                            curOffset += byteAttr.Length;
+                        }
+                    }
+                }
+            }
+            
+            foreach (var attrOffset in attrOffsets)
+            {
+                writer.WriteInt32(attrOffset);
             }
             
             CalculateAndSetSectionSize(writer, sizePosition);
@@ -294,7 +383,7 @@ public class MSBT : GeneralFile
 
         public ATR1() {}
 
-        public ATR1(FileReader reader, List<int> attributeOffsets, uint sectionSize, Encoding encoding, MSBP msbp = null)
+        public ATR1(FileReader reader, List<int> attributeOffsets, uint sectionSize, Encoding encoding, List<AttributeInfo> attributeInfos)
         {
             long startPosition = reader.Position;
             long attrDataStartPosition = startPosition + 8;
@@ -310,7 +399,7 @@ public class MSBT : GeneralFile
                 Dictionary<string, object> attrDict = new();
                 long attrsStartPosition = attrDataStartPosition + i * bytesPerAttribute;
                 
-                if (msbp != null)
+                if (attributeInfos.Count > 0)
                 {
                     if (attributeOffsets.Count > 0)
                     {
@@ -323,7 +412,7 @@ public class MSBT : GeneralFile
                             }
 
                             long attrStartPosition = attrsStartPosition + offset;
-                            AttributeInfo attrInfo = msbp.AttributeInfos[j];
+                            AttributeInfo attrInfo = attributeInfos[j];
 
                             attrDict.Add(attrInfo.Name, attrInfo.Read(reader, attrStartPosition, startPosition, encoding));
                         }
@@ -333,13 +422,13 @@ public class MSBT : GeneralFile
                         int attrNum = 0;
                         while (reader.Position - attrsStartPosition < bytesPerAttribute)
                         {
-                            AttributeInfo attrInfo = msbp.AttributeInfos[attrNum];
+                            AttributeInfo attrInfo = attributeInfos[attrNum];
                             attrDict.Add(attrInfo.Name, attrInfo.Read(reader, reader.Position, startPosition, encoding));
                         }
                     }
                 }
 
-                if (msbp == null)
+                if (attributeInfos.Count == 0)
                 {
                     if (attributeOffsets.Count > 0)
                     {
@@ -392,7 +481,7 @@ public class MSBT : GeneralFile
                         /*string curStringAttributesStringified = "";
                         foreach (var str in curStringAttributes)
                         {
-                            string quotedStr = GeneralUtils.AddQuotesToString(str);
+                            string quotedStr = GeneralUtils.QuoteString(str);
                             string addedStr = curStringAttributesStringified == "" ? quotedStr : $", {quotedStr}";
                             curStringAttributesStringified += addedStr;
                         }
@@ -404,82 +493,116 @@ public class MSBT : GeneralFile
                 
                 AttributeDicts.Add(attrDict);
             }
-            
-            //bool hasStrings = sectionSize > 8 + attributeCount * bytesPerAttribute;
-            
-            /*msbt.BytesPerAttribute = bytesPerAttribute;
-            msbt.UsesAttributeStrings = hasStrings;
-            
-            List<byte[]> attributeByteData = new();
-            for (uint i = 0; i < attributeCount; i++)
-            {
-                attributeByteData.Add(reader.ReadBytes((int)bytesPerAttribute));
-            }
-
-            foreach (byte[] byteData in attributeByteData)
-            {
-                if (hasStrings)
-                {
-                    string stringData = reader.ReadTerminatedString(msbt.Header.Encoding);
-                    Attributes.Add(new(byteData, stringData));
-                    
-                    if ((BitConverter.IsLittleEndian && reader.Endianness == Endianness.BigEndian) ||
-                        (!BitConverter.IsLittleEndian && reader.Endianness == Endianness.LittleEndian))
-                    {
-                        Array.Reverse(byteData);
-                    }
-                    
-                    uint stringOffset = BitConverter.ToUInt32(byteData[..4]);
-                    string stringData = reader.ReadTerminatedStringAt(startPosition + stringOffset);
-                
-                    Attributes.Add(new(byteData, stringData));
-                }
-                else
-                {
-                    Attributes.Add(new(byteData));
-                }
-            }*/
         }
 
-        public static void Write(FileWriter writer, Message[] messages, uint bytesPerAttribute, bool usesAttributeStrings)
+        public static void Write(FileWriter writer, Message[] messages, List<AttributeInfo> attrInfos, Encoding encoding)
         {
             writer.WriteString("ATR1", Encoding.ASCII);
             long sizePosition = writer.Position;
             writer.Pad(0xC);
-            
+
             long startPosition = writer.Position;
-            writer.WriteUInt32((uint)messages.Length);
-            writer.WriteUInt32(bytesPerAttribute);
+            writer.WriteInt32(messages.Length);
+            long bytesPerAttrPosition = writer.Position;
+            writer.Pad(4);
 
-            if (usesAttributeStrings)
+            int bytesPerAttr = 0;
+            List<string> stringAttrs = new();
+            List<long> stringAttrOffsetPositions = new();
+            for (int i = 0; i < messages.Length; i++)
             {
-                long hashTablePosition = writer.Position;
-                writer.Skip(messages.Length * bytesPerAttribute);
-                for (int i = 0; i < messages.Length; i++)
+                int curBytesPerAttr = 0;
+                foreach (var attrEntry in messages[i].Attributes)
                 {
-                    long attributePosition = writer.Position;
+                    if (attrEntry.Value is byte[] attrBytes)
+                    {
+                        writer.WriteBytes(attrBytes);
+                        curBytesPerAttr += attrBytes.Length;
+                        continue;
+                    }
 
-                    byte[] attribute = messages[i].Attribute.ByteData;
-                    uint stringOffset = (uint)(attributePosition - startPosition);
-                    long stringPosition = writer.Position;
+                    if (attrEntry.Value is List<string> attrStrings)
+                    {
+                        stringAttrs.AddRange(attrStrings);
+                        continue;
+                    }
                     
-                    writer.JumpTo(hashTablePosition + (i * bytesPerAttribute));
-                    writer.WriteBytes(attribute);
-                    writer.WriteUInt32(stringOffset);
-                    
-                    long nextAttributePosition = writer.Position;
-                    
-                    writer.JumpTo(stringPosition);
-                    writer.WriteString(messages[i].Attribute.StringData + '\0', Encoding.ASCII);
-                    writer.JumpTo(nextAttributePosition);
+                    var attrInfo = attrInfos.FirstOrDefault(x => x.Name == attrEntry.Key);
+                    if (attrInfo != null)
+                    {
+                        curBytesPerAttr += GeneralUtils.GetTypeSize(attrInfo.Type);
+                        switch (attrInfo.Type)
+                        {
+                            case ParamType.UInt8:
+                                writer.WriteByte((byte)attrEntry.Value);
+                                break;
+                            case ParamType.UInt16:
+                                writer.WriteUInt16((ushort)attrEntry.Value);
+                                break;
+                            case ParamType.UInt32:
+                                writer.WriteUInt32((uint)attrEntry.Value);
+                                break;
+                            case ParamType.Int8:
+                                writer.WriteByte((byte)attrEntry.Value);
+                                break;
+                            case ParamType.Int16:
+                                writer.WriteInt16((short)attrEntry.Value);
+                                break;
+                            case ParamType.Int32:
+                                writer.WriteInt32((int)attrEntry.Value);
+                                break;
+                            case ParamType.Float:
+                                writer.WriteSingle((float)attrEntry.Value);
+                                break;
+                            case ParamType.Double:
+                                writer.WriteDouble((double)attrEntry.Value);
+                                break;
+                            case ParamType.String:
+                                stringAttrs.Add((string)attrEntry.Value);
+                                stringAttrOffsetPositions.Add(writer.Position);
+                                writer.Pad(4);
+                                break;
+                            case ParamType.List:
+                                int itemId = attrInfo.List.FindIndex(x => x == (string) attrEntry.Value);
+                                if (itemId == -1)
+                                {
+                                    throw new Exception($"Attribute \"{attrEntry.Key}\" doesn't contain an item called \"{(string)attrEntry.Value}\".");
+                                }
+                                writer.WriteByte((byte)itemId);
+                                break;
+                            default:
+                                throw new Exception($"Attribute {attrEntry.Key} has an unknown type!");
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception($"Can't find an attribute called \"{attrEntry.Key}\" inside the MSBP.");
+                    }
+                }
+
+                if (i == 0)
+                {
+                    bytesPerAttr = curBytesPerAttr;
+                }
+                else
+                {
+                    if (curBytesPerAttr != bytesPerAttr)
+                    {
+                        throw new Exception($"Message {i} doesn't have the same amount of attributes as message 0.");
+                    }
                 }
             }
-            else
+
+            writer.WriteInt32AtAndReturn(bytesPerAttrPosition, bytesPerAttr);
+
+            for (int i = 0; i < stringAttrs.Count; i++)
             {
-                foreach (var message in messages)
+                if (stringAttrOffsetPositions.Count > 0)
                 {
-                    writer.WriteBytes(message.Attribute.ByteData);
+                    int stringOffset = (int) (writer.Position - startPosition);
+                    writer.WriteInt32AtAndReturn(stringAttrOffsetPositions[i], stringOffset);
                 }
+                writer.WriteTerminatedString(stringAttrs[i], encoding);
             }
             
             CalculateAndSetSectionSize(writer, sizePosition);

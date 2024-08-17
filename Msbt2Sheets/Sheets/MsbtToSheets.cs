@@ -620,7 +620,7 @@ public class MsbtToSheets
                     List<string> attributes = new();
                     if (msbt.HasATR1)
                     {
-                        attributes.AddRange(message.Value.Attribute.ToStringList(msbp));
+                        attributes.AddRange(AttributeDictionaryToList(message.Value.Attributes, msbp != null ? msbp.AttributeInfos : new()));
                     }
 
                     if (msbt.HasTSY1)
@@ -769,6 +769,15 @@ public class MsbtToSheets
             {
                 continue;
             }
+
+            List<string> langNames = new(){"EU_English", "JPja", "EU_German", "EU_French", "EU_Italian", "EU_Spanish"};
+            
+            var headerRow = sheet.Data[0].RowData[0].Values.ToList();
+            List<int> langColumnIds = new();
+            foreach (var langName in langNames)
+            {
+                langColumnIds.Add(headerRow.FindIndex(x => x.UserEnteredValue.StringValue == langName));
+            }
             
             for (int i = 1; i < sheet.Data[0].RowData.Count; i++)
             {
@@ -779,179 +788,59 @@ public class MsbtToSheets
                 {
                     continue;
                 }
-                
-                string engNewMessage = row.Values[1].UserEnteredValue.StringValue;
-                string japNewMessage = row.Values[2].UserEnteredValue.StringValue;
-                string gerNewMessage = row.Values[6].UserEnteredValue.StringValue;
-                string fraNewMessage = row.Values[7].UserEnteredValue.StringValue;
-                string itaNewMessage = row.Values[9].UserEnteredValue.StringValue;
-                string spaNewMessage = row.Values[10].UserEnteredValue.StringValue;
+
+                List<string> newMessages = new();
+                foreach (var langColumnId in langColumnIds)
+                {
+                    newMessages.Add(langColumnId != -1 ? row.Values[langColumnId].UserEnteredValue.StringValue : "");
+                }
                 
                 Console.WriteLine($"Analysing {sheet.Properties.Title}@{label}...");
 
                 var origMessages = FindOrigMessages(label, sheet.Properties.Title, targetSheetNames, values);
-                string engOrigMessage = origMessages[0];
-                string japOrigMessage = origMessages[1];
-                string gerOrigMessage = origMessages[2];
-                string fraOrigMessage = origMessages[3];
-                string itaOrigMessage = origMessages[4];
-                string spaOrigMessage = origMessages[5];
 
-                if (engOrigMessage == "{{not-found}}")
+                if (origMessages[0] == "{{not-found}}")
                 {
-                    row.Values[1].UserEnteredFormat = new CellFormat()
+                    foreach (var langColumnId in langColumnIds)
                     {
-                        BackgroundColorStyle = new ColorStyle()
+                        if (langColumnId != -1)
                         {
-                            RgbColor = new Color()
+                            row.Values[langColumnId].UserEnteredFormat = new CellFormat()
                             {
-                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
-                            }
+                                BackgroundColorStyle = new ColorStyle()
+                                {
+                                    RgbColor = new Color()
+                                    {
+                                        Red = 0.812f, Green = 0.886f, Blue = 0.953f
+                                    }
+                                }
+                            };
                         }
-                    };
-                    row.Values[2].UserEnteredFormat = new CellFormat()
-                    {
-                        BackgroundColorStyle = new ColorStyle()
-                        {
-                            RgbColor = new Color()
-                            {
-                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
-                            }
-                        }
-                    };
-                    row.Values[6].UserEnteredFormat = new CellFormat()
-                    {
-                        BackgroundColorStyle = new ColorStyle()
-                        {
-                            RgbColor = new Color()
-                            {
-                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
-                            }
-                        }
-                    };
-                    row.Values[7].UserEnteredFormat = new CellFormat()
-                    {
-                        BackgroundColorStyle = new ColorStyle()
-                        {
-                            RgbColor = new Color()
-                            {
-                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
-                            }
-                        }
-                    };
-                    row.Values[9].UserEnteredFormat = new CellFormat()
-                    {
-                        BackgroundColorStyle = new ColorStyle()
-                        {
-                            RgbColor = new Color()
-                            {
-                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
-                            }
-                        }
-                    };
-                    row.Values[10].UserEnteredFormat = new CellFormat()
-                    {
-                        BackgroundColorStyle = new ColorStyle()
-                        {
-                            RgbColor = new Color()
-                            {
-                                Red = 0.812f, Green = 0.886f, Blue = 0.953f
-                            }
-                        }
-                    };
+                    }
                 }
                 else
                 {
-                    string normalizedEngNewMessage = NormalizeMessage(engNewMessage);
-                    string normalizedJapNewMessage = NormalizeMessage(japNewMessage);
-                    string normalizedGerNewMessage = NormalizeMessage(gerNewMessage);
-                    string normalizedFraNewMessage = NormalizeMessage(fraNewMessage);
-                    string normalizedItaNewMessage = NormalizeMessage(itaNewMessage);
-                    string normalizedSpaNewMessage = NormalizeMessage(spaNewMessage);
-                    string normalizedEngOrigMessage = NormalizeMessage(engOrigMessage);
-                    string normalizedJapOrigMessage = NormalizeMessage(japOrigMessage);
-                    string normalizedGerOrigMessage = NormalizeMessage(gerOrigMessage);
-                    string normalizedFraOrigMessage = NormalizeMessage(fraOrigMessage);
-                    string normalizedItaOrigMessage = NormalizeMessage(itaOrigMessage);
-                    string normalizedSpaOrigMessage = NormalizeMessage(spaOrigMessage);
-
-                    if (normalizedEngNewMessage != normalizedEngOrigMessage)
+                    for (int j = 0; j < langColumnIds.Count; j++)
                     {
-                        row.Values[1].UserEnteredFormat = new CellFormat()
+                        if (langColumnIds[j] != -1)
                         {
-                            BackgroundColorStyle = new ColorStyle()
+                            string normalizedNewMessage = NormalizeMessage(newMessages[j]);
+                            string normalizedOrigMessage = NormalizeMessage(origMessages[j]);
+                            
+                            if (normalizedNewMessage != normalizedOrigMessage)
                             {
-                                RgbColor = new Color()
+                                row.Values[langColumnIds[j]].UserEnteredFormat = new CellFormat()
                                 {
-                                    Red = 1, Green = 0.949f, Blue = 0.8f
-                                }
+                                    BackgroundColorStyle = new ColorStyle()
+                                    {
+                                        RgbColor = new Color()
+                                        {
+                                            Red = 1, Green = 0.949f, Blue = 0.8f
+                                        }
+                                    }
+                                };
                             }
-                        };
-                    }
-                    if (normalizedJapNewMessage != normalizedJapOrigMessage)
-                    {
-                        row.Values[2].UserEnteredFormat = new CellFormat()
-                        {
-                            BackgroundColorStyle = new ColorStyle()
-                            {
-                                RgbColor = new Color()
-                                {
-                                    Red = 1, Green = 0.949f, Blue = 0.8f
-                                }
-                            }
-                        };
-                    }
-                    if (normalizedGerNewMessage != normalizedGerOrigMessage)
-                    {
-                        row.Values[6].UserEnteredFormat = new CellFormat()
-                        {
-                            BackgroundColorStyle = new ColorStyle()
-                            {
-                                RgbColor = new Color()
-                                {
-                                    Red = 1, Green = 0.949f, Blue = 0.8f
-                                }
-                            }
-                        };
-                    }
-                    if (normalizedFraNewMessage != normalizedFraOrigMessage)
-                    {
-                        row.Values[7].UserEnteredFormat = new CellFormat()
-                        {
-                            BackgroundColorStyle = new ColorStyle()
-                            {
-                                RgbColor = new Color()
-                                {
-                                    Red = 1, Green = 0.949f, Blue = 0.8f
-                                }
-                            }
-                        };
-                    }
-                    if (normalizedItaNewMessage != normalizedItaOrigMessage)
-                    {
-                        row.Values[9].UserEnteredFormat = new CellFormat()
-                        {
-                            BackgroundColorStyle = new ColorStyle()
-                            {
-                                RgbColor = new Color()
-                                {
-                                    Red = 1, Green = 0.949f, Blue = 0.8f
-                                }
-                            }
-                        };
-                    }
-                    if (normalizedSpaNewMessage != normalizedSpaOrigMessage)
-                    {
-                        row.Values[10].UserEnteredFormat = new CellFormat()
-                        {
-                            BackgroundColorStyle = new ColorStyle()
-                            {
-                                RgbColor = new Color()
-                                {
-                                    Red = 1, Green = 0.949f, Blue = 0.8f
-                                }
-                            }
-                        };
+                        }
                     }
                 }
             }
@@ -971,7 +860,7 @@ public class MsbtToSheets
             }
             else
             {
-                options.TransLangSheetNames = options.TransLangSheetNames;
+                options.TransLangSheetNames = options.TransLangNames;
             }
             return;
         }
@@ -1507,7 +1396,8 @@ public class MsbtToSheets
                 GridProperties = new GridProperties()
                 {
                     RowCount = 1 + baseLang.Count,
-                    ColumnCount = baseLang[0].HasATO1 ? 6 : 5,
+                    /*ColumnCount = baseLang[0].HasATO1 ? 6 : 5,*/
+                    ColumnCount = 5,
                     FrozenRowCount = 1
                 }
             },
@@ -1528,7 +1418,7 @@ public class MsbtToSheets
             )
         };
 
-        if (baseLang[0].HasATO1)
+        /*if (baseLang[0].HasATO1)
         {
             headerRow.Values.Add(new CellData()
             {
@@ -1538,7 +1428,7 @@ public class MsbtToSheets
                 },
                 UserEnteredFormat = Constants.HEADER_CELL_FORMAT
             });
-        }
+        }*/
         
         dataSheet.Data[0].RowData.Add(headerRow);
 
@@ -1586,7 +1476,7 @@ public class MsbtToSheets
                 }
             };
 
-            if (baseLang[0].HasATO1)
+            /*if (baseLang[0].HasATO1)
             {
                 string ato1String = "";
                 foreach (var num in msbt.AttributeOffsets)
@@ -1607,7 +1497,7 @@ public class MsbtToSheets
                         WrapStrategy = "WRAP"
                     }
                 });
-            }
+            }*/
             
             dataSheet.Data[0].RowData.Add(row);
         }
@@ -2704,5 +2594,52 @@ public class MsbtToSheets
             "{{not-found}}",
             "{{not-found}}",
         };
+    }
+
+    static List<string> AttributeDictionaryToList(Dictionary<string, object> dict, List<AttributeInfo> attrInfos)
+    {
+        List<string> list = new();
+
+        foreach (var attr in dict)
+        {
+            string value = "";
+            
+            if (attr.Value is List<string> stringAttrs)
+            {
+                foreach (var str in stringAttrs)
+                {
+                    string quotedStr = GeneralUtils.QuoteString(str);
+                    value += value == "" ? quotedStr : $", {quotedStr}";
+                }
+                list.Add($"{attr.Key}: {value}");
+                continue;
+            }
+
+            if (attr.Value is byte[] attrBytes)
+            {
+                value = BitConverter.ToString(attrBytes);
+                list.Add($"{attr.Key}: {value}");
+                continue;
+            }
+
+            AttributeInfo attrInfo = attrInfos.FirstOrDefault(x => x.Name == attr.Key);
+            if (attrInfo != null)
+            {
+                if (attrInfo.Type == ParamType.String)
+                {
+                    value = GeneralUtils.QuoteString((string)attr.Value);
+                    list.Add($"{attr.Key}: {value}");
+                    continue;
+                }
+                
+                list.Add($"{attr.Key}: {attr.Value}");
+            }
+            else
+            {
+                throw new Exception($"Can't find an attribute called \"{attr.Key}\" inside the MSBP.");
+            }
+        }
+        
+        return list;
     }
 }

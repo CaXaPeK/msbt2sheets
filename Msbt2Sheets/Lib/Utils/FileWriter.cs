@@ -78,6 +78,11 @@ public class FileWriter
     {
         _writer.Write(value);
     }
+
+    public void WriteSByte(sbyte value)
+    {
+        _writer.Write((byte)value);
+    }
     
     public void WriteInt16(short value)
     {
@@ -134,10 +139,51 @@ public class FileWriter
         }
         _writer.Write(buffer);
     }
+    
+    public void WriteInt32AtAndReturn(long position, int value)
+    {
+        long prevPos = Position;
+        Position = position;
+        WriteInt32(value);
+        Position = prevPos;
+    }
+    
+    public void WriteSingle(float value)
+    {
+        byte[] buffer = new byte[sizeof(float)];
+        if (Endianness == Endianness.LittleEndian)
+        {
+            BinaryPrimitives.WriteSingleLittleEndian(buffer, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteSingleBigEndian(buffer, value);
+        }
+        _writer.Write(buffer);
+    }
+    
+    public void WriteDouble(double value)
+    {
+        byte[] buffer = new byte[sizeof(double)];
+        if (Endianness == Endianness.LittleEndian)
+        {
+            BinaryPrimitives.WriteDoubleLittleEndian(buffer, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteDoubleBigEndian(buffer, value);
+        }
+        _writer.Write(buffer);
+    }
 
     public void WriteString(string data, Encoding encoding)
     {
         _writer.Write(encoding.GetBytes(data));
+    }
+    
+    public void WriteTerminatedString(string data, Encoding encoding)
+    {
+        _writer.Write(encoding.GetBytes(data + '\0'));
     }
 
     #endregion

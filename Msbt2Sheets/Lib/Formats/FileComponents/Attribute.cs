@@ -29,7 +29,7 @@ public class MessageAttribute
             list.Add($"Attributes: {BitConverter.ToString(ByteData)}");
             if (StringData != null)
             {
-                list.Add($"StringAttribute: {GeneralUtils.AddQuotesToString(StringData)}");
+                list.Add($"StringAttribute: {GeneralUtils.QuoteString(StringData)}");
             }
 
             return list;
@@ -40,7 +40,7 @@ public class MessageAttribute
             list.Add($"Attributes: {BitConverter.ToString(ByteData)}");
             if (StringData != null)
             {
-                list.Add($"StringAttribute: {GeneralUtils.AddQuotesToString(StringData)}");
+                list.Add($"StringAttribute: {GeneralUtils.QuoteString(StringData)}");
             }
 
             return list;
@@ -110,7 +110,7 @@ public class MessageAttribute
         
         if (StringData != null)
         {
-            list.Add($"StringAttribute: {GeneralUtils.AddQuotesToString(StringData)}");
+            list.Add($"StringAttribute: {GeneralUtils.QuoteString(StringData)}");
         }
 
         return list;
