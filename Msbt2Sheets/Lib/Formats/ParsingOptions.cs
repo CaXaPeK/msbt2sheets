@@ -58,6 +58,8 @@ public class ParsingOptions
     public List<string> InternalLangNames = new();
     public List<string> OutputLangNames = new();
 
+    public bool RecreateSources = false;
+
     public ParsingOptions()
     {
     }

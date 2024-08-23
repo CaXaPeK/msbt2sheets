@@ -152,7 +152,11 @@ public class MSBT : GeneralFile
                 {
                     try
                     {
-                        ATO1.Write(writer, Messages.First().Value.Attributes, msbp != null ? msbp.AttributeInfos : new(), MsbpAttributeCount);
+                        if (!Messages.First().Value.Attributes.ContainsKey("Attributes"))
+                        {
+                            ATO1.Write(writer, Messages.First().Value.Attributes, msbp != null ? msbp.AttributeInfos : new(), MsbpAttributeCount);
+                            sectionCount++;
+                        }
                     }
                     catch (Exception e)
                     {
@@ -168,7 +172,6 @@ public class MSBT : GeneralFile
             {
                 throw new Exception($"Can't build an ATO1 section for {FileName}: {e.Message}.");
             }
-            sectionCount++;
         }
         
         if (HasATR1)
@@ -307,7 +310,7 @@ public class MSBT : GeneralFile
     }
     internal class ATO1
     {
-        public List<int> Offsets { get; set; }
+        public List<int> Offsets = new();
 
         public ATO1() {}
 
@@ -323,18 +326,19 @@ public class MSBT : GeneralFile
 
         public static void Write(FileWriter writer, Dictionary<string, object> attrDict, List<AttributeInfo> attrInfos, int msbpAttrCount)
         {
+            if (attrDict.ContainsKey("Attributes"))
+            {
+                //throw new Exception("No distinct attributes.");
+                return;
+            }
+            
             writer.WriteString("ATO1", Encoding.ASCII);
             long sizePosition = writer.Position;
             writer.Pad(0xC);
 
             int unnamedAttrCount = attrDict.Count(x => x.Key.StartsWith("Attribute_"));
-            List<int> attrOffsets = Enumerable.Repeat(-1, attrInfos.Count).ToList();
+            List<int> attrOffsets = Enumerable.Repeat(-1, msbpAttrCount).ToList();
             int curOffset = 0;
-            
-            if (attrDict.ContainsKey("Attributes"))
-            {
-                throw new Exception("No distinct attributes.");
-            }
             
             if (!attrDict.ContainsKey("Attributes") && unnamedAttrCount == 0)
             {

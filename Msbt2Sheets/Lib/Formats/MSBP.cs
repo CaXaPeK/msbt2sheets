@@ -648,4 +648,72 @@ public class MSBP : GeneralFile
             }
         }
     };
+
+    public static MSBP MK8DXMSBP
+    {
+        get
+        {
+            MSBP msbp = BaseMSBP;
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Text",
+                Id = 1,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "Number",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "order_in_memory",
+                                Type = ParamType.Int32
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Unused1"
+                    },
+                    new TagType()
+                    {
+                        Name = "Unused2"
+                    },
+                    new TagType()
+                    {
+                        Name = "UserName"
+                    },
+                    new TagType()
+                    {
+                        Name = "TournamentName"
+                    },
+                    new TagType()
+                    {
+                        Name = "TournamentCode"
+                    },
+                    new TagType()
+                    {
+                        Name = "RacerName",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "order_in_memory",
+                                Type = ParamType.Int32
+                            }
+                        }
+                    }
+                }
+            });
+
+            msbp.Colors.Add("Red", Color.FromArgb(255, 255, 120, 107));
+            msbp.Colors.Add("Blue", Color.FromArgb(255, 112, 176, 247));
+            msbp.Colors.Add("Green", Color.FromArgb(255, 83, 212, 85));
+            msbp.Colors.Add("Yellow", Color.FromArgb(255, 255, 211, 0));
+            msbp.HasCLB1 = true;
+            
+            return msbp;
+        }
+    }
 }

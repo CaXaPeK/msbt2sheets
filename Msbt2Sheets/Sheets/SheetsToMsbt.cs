@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using Google.Apis.Http;
 using Google.Apis.Sheets.v4.Data;
 using Msbt2Sheets.Lib.Formats;
 using Msbt2Sheets.Lib.Formats.FileComponents;
@@ -54,6 +55,12 @@ public class SheetsToMsbt
 
         MSBP msbp = ObtainMsbp(spreadsheet, sheets);
 
+        if (options.RecreateSources)
+        {
+            RecreateSources(msbp.SourceFileNames, options.OutputPath);
+            ConsoleUtils.Exit();
+        }
+
         AskLanguageNames(spreadsheet, sheets, options);
 
         List<List<MSBT>> langs = ObtainMsbts(spreadsheet, sheets, options, msbp);
@@ -63,6 +70,19 @@ public class SheetsToMsbt
         SaveMsbts(langs, msbp, options);
         
         ConsoleUtils.Exit();
+    }
+
+    static void RecreateSources(List<string> sources, string outputPath)
+    {
+        foreach (var source in sources)
+        {
+            Console.WriteLine($"Saving {source}");
+            string filePath = $"{outputPath}\\{source}";
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+            File.WriteAllBytes(filePath, new byte[]{});
+        }
+        
+        Console.WriteLine($"\nDone! Saved at {outputPath}");
     }
 
     static List<List<List<string>>> ValueRangesToStringLists(List<ValueRange> valueRanges)
@@ -215,6 +235,9 @@ public class SheetsToMsbt
                 case "mainLangColumnId":
                     options.MainLangColumnId = Convert.ToInt32(option.Value);
                     break;
+                case "recreateSources":
+                    options.RecreateSources = Convert.ToBoolean(option.Value);
+                    break;
             }
         }
 
@@ -232,6 +255,7 @@ public class SheetsToMsbt
         ObtainMsbpStyles(spreadsheet, sheets, msbp);
         ObtainMsbpAttributes(spreadsheet, sheets, msbp);
         ObtainMsbpTags(spreadsheet, sheets, msbp);
+        ObtainMsbpSources(spreadsheet, sheets, msbp);
 
         if (msbp.TagGroups.Count == 0)
         {
@@ -265,6 +289,19 @@ public class SheetsToMsbt
                     msbp.Colors.Add(counter.ToString(), ColorStringToColor(row[0]));
                     counter++;
                 }
+            }
+        }
+    }
+    
+    static void ObtainMsbpSources(Spreadsheet spreadsheet, List<List<List<string>>> sheets, MSBP msbp)
+    {
+        int sourceSheetId = spreadsheet.Sheets.ToList().FindIndex(x => x.Properties.Title == "#SourceFiles");
+        if (sourceSheetId != -1)
+        {
+            msbp.HasCTI1 = true;
+            foreach (var row in sheets[sourceSheetId])
+            {
+                msbp.SourceFileNames.Add(row[0]);
             }
         }
     }
@@ -544,6 +581,7 @@ public class SheetsToMsbt
             byte version;
             Endianness byteOrder;
             EncodingType encoding;
+            int msbpAttributeCount = msbp != null ? msbp.AttributeInfos.Count : 0;
             
             if (!options.NoInternalDataSheet)
             {
@@ -672,6 +710,12 @@ public class SheetsToMsbt
                             attributeDict.Remove("StyleId");
                         }
 
+                        int unnamedAttrCount = attributeDict.Count(x => x.Key.StartsWith("Attribute_"));
+                        if (unnamedAttrCount > 0)
+                        {
+                            msbpAttributeCount = unnamedAttrCount;
+                        }
+
                         if (attributeDict.Count > 0)
                         {
                             hasAtr1 = true;
@@ -710,7 +754,8 @@ public class SheetsToMsbt
                     HasATR1 = hasAtr1,
                     HasTSY1 = hasTsy1,
                     HasATO1 = hasAtr1,
-                    Messages = messages
+                    Messages = messages,
+                    MsbpAttributeCount = msbpAttributeCount
                 });
             }
         }
@@ -727,7 +772,7 @@ public class SheetsToMsbt
         {
             object value = null;
             
-            if (strDictEntry.Key.StartsWith("Attribute_"))
+            if (strDictEntry.Key.StartsWith("Attribute_") || strDictEntry.Key == "Attributes")
             {
                 value = Convert.FromHexString(strDictEntry.Value.Replace("-", ""));
             }

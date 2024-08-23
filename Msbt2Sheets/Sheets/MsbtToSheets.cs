@@ -26,8 +26,8 @@ public class MsbtToSheets
         List<string> internalLangNames = ReorderLanguages(languagesPath, fileOptions);
         //List<string> sheetLangNames = internalLangNames;
         List<string> sheetLangNames = RenameLanguages(internalLangNames, fileOptions);
-    
-        MSBP msbp = ParseMSBP(fileOptions);
+
+        MSBP msbp = ParseMSBP(fileOptions);//MSBP.MK8DXMSBP;
         ParsingOptions options = SetParsingOptions(fileOptions, msbp);
 
         options.UnnecessaryPathPrefix = FindUnnecessaryPathPrefix($"{languagesPath}/{internalLangNames[0]}/", "");
@@ -849,10 +849,18 @@ public class MsbtToSheets
     
     static void AddTranslationLanguages(ref ParsingOptions options, Dictionary<string, string> fileOptions)
     {
-        if (fileOptions.ContainsKey("newLangs") && fileOptions.ContainsKey("newLangsPaths"))
+        if (fileOptions.ContainsKey("newLangs") || fileOptions.ContainsKey("newLangsPaths"))
         {
             options.TransLangNames.AddRange(fileOptions["newLangs"].Split('|'));
-            options.TransLangPaths.AddRange(fileOptions["newLangsPaths"].Split('|'));
+
+            if (fileOptions.ContainsKey("newLangsPaths"))
+            {
+                options.TransLangPaths.AddRange(fileOptions["newLangsPaths"].Split('|'));
+            }
+            else
+            {
+                options.TransLangPaths = Enumerable.Repeat("", options.TransLangNames.Count).ToList();
+            }
             
             if (fileOptions.ContainsKey("newLangsSheetNames"))
             {

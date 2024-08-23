@@ -1,13 +1,7 @@
-﻿using System.Diagnostics;
-using System.Net.Mime;
-using System.Text;
-using System.Text.RegularExpressions;
+﻿using System.Text;
 using Google.Apis.Auth.OAuth2;
-using Google.Apis.Sheets.v4;using Google.Apis.Sheets.v4.Data;
+using Google.Apis.Sheets.v4;
 using Msbt2Sheets;
-using Msbt2Sheets.Lib.Formats;
-using Msbt2Sheets.Lib.Formats.FileComponents;
-using Msbt2Sheets.Lib.Utils;
 using Msbt2Sheets.Sheets;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -26,6 +20,7 @@ foreach (string s in File.ReadAllLines(credPath))
     else if (s.StartsWith("clientSecret="))
         googleClientSecret = s.Split('=')[1];
 }
+
 
 UserCredential credential = GoogleAuth.Login(googleClientId, googleClientSecret, scopes);
 GoogleSheetsManager sheetsManager = new GoogleSheetsManager(credential);
