@@ -5,7 +5,7 @@ using Msbt2Sheets;
 using Msbt2Sheets.Sheets;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
+    
 string credPath = Environment.CurrentDirectory + "/data/credentials.txt";
 ConsoleUtils.CheckFile(credPath);
 

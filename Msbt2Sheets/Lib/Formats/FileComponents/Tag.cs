@@ -22,6 +22,7 @@ public class Tag
 
     public string Stringify(ParsingOptions options, string tagOrigin, Encoding encoding, MSBP? msbp = null, bool isBaseMsbp = false, bool parseCd = false)
     {
+        //Console.WriteLine($"<{Group}.{Type}:{BitConverter.ToString(RawParameters)}>");
         if (msbp == null)
         {
             if (Group == 0)
@@ -436,7 +437,7 @@ public class Tag
         return result;
     }
 
-    public static byte[] Write(FileWriter writer, string tag, ParsingOptions options, MSBP? msbp = null)
+    public static byte[] Write(FileWriter writer, string tag, ParsingOptions options, bool isUtf8, MSBP? msbp = null)
     {
         string unformattedTagPattern = @"<\/?\d+\.\d+(?::[0-9A-F]{2}(-[0-9A-F]{2})*)?>";
         bool unformatted = Regex.IsMatch(tag, unformattedTagPattern);
@@ -445,7 +446,7 @@ public class Tag
         {
             if (unformatted)
             {
-                return WriteUnformattedTag(writer, tag);
+                return WriteUnformattedTag(writer, tag, isUtf8);
             }
             else
             {
@@ -453,7 +454,7 @@ public class Tag
                 {
                     throw new InvalidDataException("MSBP wasn't provided");
                 }
-                return WriteFormattedTag(writer, tag, msbp, options, false);
+                return WriteFormattedTag(writer, tag, msbp, options, false, isUtf8);
             }
         }
         catch (Exception e)
@@ -462,20 +463,36 @@ public class Tag
         }
     }
 
-    private static byte[] WriteUnformattedTag(FileWriter writer, string tag)
+    private static byte[] WriteUnformattedTag(FileWriter writer, string tag, bool isUtf8)
     {
         FileWriter tagWriter = new(new MemoryStream());
         bool isTagEnd = tag[1] == '/';
-        
-        if (isTagEnd)
+
+        if (isUtf8)
         {
-            writer.WriteUInt16(0xF);
-            tagWriter.WriteUInt16(0xF);
+            if (isTagEnd)
+            {
+                writer.WriteByte(0xF);
+                tagWriter.WriteByte(0xF);
+            }
+            else
+            {
+                writer.WriteByte(0xE);
+                tagWriter.WriteByte(0xE);
+            }
         }
         else
         {
-            writer.WriteUInt16(0xE);
-            tagWriter.WriteUInt16(0xE);
+            if (isTagEnd)
+            {
+                writer.WriteUInt16(0xF);
+                tagWriter.WriteUInt16(0xF);
+            }
+            else
+            {
+                writer.WriteUInt16(0xE);
+                tagWriter.WriteUInt16(0xE);
+            }
         }
         
         string groupString = isTagEnd ? tag[2..tag.IndexOf('.')] : tag[1..tag.IndexOf('.')];
@@ -510,7 +527,7 @@ public class Tag
         return ((MemoryStream)tagWriter.BaseStream).ToArray();
     }
 
-    private static byte[] WriteFormattedTag(FileWriter writer, string tag, MSBP msbp, ParsingOptions options, bool parseCd)
+    private static byte[] WriteFormattedTag(FileWriter writer, string tag, MSBP msbp, ParsingOptions options, bool parseCd, bool isUtf8)
     {
         string initialTag = tag;
         try
@@ -519,15 +536,31 @@ public class Tag
             tagWriter.Endianness = writer.Endianness;
             bool isTagEnd = tag[1] == '/';
 
-            if (isTagEnd)
+            if (isUtf8)
             {
-                tagWriter.WriteUInt16(0xF);
-                tag = tag[2..];
+                if (isTagEnd)
+                {
+                    tagWriter.WriteByte(0xF);
+                    tag = tag[2..];
+                }
+                else
+                {
+                    tagWriter.WriteByte(0xE);
+                    tag = tag[1..];
+                }
             }
             else
             {
-                tagWriter.WriteUInt16(0xE);
-                tag = tag[1..];
+                if (isTagEnd)
+                {
+                    tagWriter.WriteUInt16(0xF);
+                    tag = tag[2..];
+                }
+                else
+                {
+                    tagWriter.WriteUInt16(0xE);
+                    tag = tag[1..];
+                }
             }
 
             bool hasParameters = tag.Contains(' ');
@@ -663,7 +696,7 @@ public class Tag
             {
                 try
                 {
-                    return WriteFormattedTag(writer, initialTag, msbp, options, true);
+                    return WriteFormattedTag(writer, initialTag, msbp, options, true, isUtf8);
                 }
                 catch (Exception ex)
                 {

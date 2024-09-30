@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Reflection.Emit;
 using System.Text;
 using Google.Apis.Sheets.v4.Data;
 using Msbt2Sheets.Lib.Formats.FileComponents;
@@ -562,7 +563,7 @@ public class MSBT : GeneralFile
                                 writer.WriteDouble((double)attrEntry.Value);
                                 break;
                             case ParamType.String:
-                                stringAttrs.Add((string)attrEntry.Value);
+                                stringAttrs.Add(GeneralUtils.UnquoteString((string)attrEntry.Value));
                                 stringAttrOffsetPositions.Add(writer.Position);
                                 writer.Pad(4);
                                 break;
@@ -653,7 +654,7 @@ public class MSBT : GeneralFile
         public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, LBL1 lbl1, string fileName, Encoding encoding, MSBP? msbp = null)
         {
             Messages = new();
-            
+            //encoding = Encoding.Unicode;
             long startPosition = reader.Position;
             uint messageCount = reader.ReadUInt32();
             List<uint> stringOffsets = new();
@@ -665,6 +666,7 @@ public class MSBT : GeneralFile
 
             for (uint i = 0; i < messageCount; i++)
             {
+                //Console.WriteLine(lbl1.Labels[Messages.Count]);
                 Message message = new();
                 if (hasATR1)
                 {
@@ -703,19 +705,46 @@ public class MSBT : GeneralFile
 
                 while (!reachedEnd && reader.Position < nextStringPosition)
                 {
-                    short character = reader.ReadInt16();
+                    char character;
+                    switch (encoding)
+                    {
+                        case UTF8Encoding:
+                            List<byte> charBytes = new();
+                            character = '\ufffd';
+                            while (character == '\ufffd')
+                            {
+                                charBytes.Add(reader.ReadByte());
+                                character = encoding.GetChars(charBytes.ToArray())[0];
+                            }
+                            break;
+                        case UnicodeEncoding:
+                            character = encoding.GetChars(BitConverter.GetBytes(reader.ReadInt16()))[0];
+                            break;
+                        default:
+                            throw new InvalidDataException("Unknown encoding.");
+                    }
                     string tagOrigin = $"{fileName}@{lbl1.Labels[Messages.Count]}";
                     List<byte> buffer = new List<byte>();
                     switch (character)
                     {
-                        case 0x0E:
-                            if (reader.Endianness == Endianness.LittleEndian)
+                        case '\u000e':
+                            switch (encoding)
                             {
-                                buffer.AddRange(new byte[]{0xE, 0x0});
-                            }
-                            else
-                            {
-                                buffer.AddRange(new byte[]{0x0, 0xE});
+                                case UTF8Encoding:
+                                    buffer.Add(0xE);
+                                    break;
+                                case UnicodeEncoding:
+                                    if (reader.Endianness == Endianness.LittleEndian)
+                                    {
+                                        buffer.AddRange(new byte[]{0xE, 0x0});
+                                    }
+                                    else
+                                    {
+                                        buffer.AddRange(new byte[]{0x0, 0xE});
+                                    }
+                                    break;
+                                default:
+                                    throw new InvalidDataException("Unknown encoding.");
                             }
                             ushort tagGroup;
                             ushort tagType;
@@ -754,14 +783,24 @@ public class MSBT : GeneralFile
                             messageString.Append(tag.Stringify(options, tagOrigin, encoding, msbp));
                             break;
                         
-                        case 0x0F:
-                            if (reader.Endianness == Endianness.LittleEndian)
+                        case '\u000f':
+                            switch (encoding)
                             {
-                                buffer.AddRange(new byte[]{0xF, 0x0});
-                            }
-                            else
-                            {
-                                buffer.AddRange(new byte[]{0x0, 0xF});
+                                case UTF8Encoding:
+                                    buffer.Add(0xF);
+                                    break;
+                                case UnicodeEncoding:
+                                    if (reader.Endianness == Endianness.LittleEndian)
+                                    {
+                                        buffer.AddRange(new byte[]{0xF, 0x0});
+                                    }
+                                    else
+                                    {
+                                        buffer.AddRange(new byte[]{0x0, 0xF});
+                                    }
+                                    break;
+                                default:
+                                    throw new InvalidDataException("Unknown encoding.");
                             }
                             ushort tagEndGroup;
                             ushort tagEndType;
@@ -787,33 +826,34 @@ public class MSBT : GeneralFile
                             messageString.Append(tagEnd.Stringify(options, tagOrigin, encoding, msbp));
                             break;
                         
-                        case 0x00:
+                        case '\0':
                             reachedEnd = true;
                             break;
                         
-                        case 0x3C:
+                        case '<':
                             messageString.Append('\\');
                             messageString.Append('<');
                             break;
                         
-                        case 0x3E:
+                        case '>':
                             messageString.Append('\\');
                             messageString.Append('>');
                             break;
                         
-                        case 0x5C:
+                        case '\\':
                             messageString.Append('\\');
                             messageString.Append('\\');
                             break;
                         
                         default:
-                            messageString.Append(encoding.GetString(BitConverter.GetBytes(character)));
+                            messageString.Append(character);
                             break;
                     }
                 }
 
                 message.Text = messageString.ToString();
                 Messages.Add(message);
+                //Console.WriteLine($"{i}: {message.Text}");
             }
         }
 
@@ -893,12 +933,15 @@ public class MSBT : GeneralFile
 
                             try
                             {
-                                byte[] tagBytes = Tag.Write(writer, tagText, options, msbp);
-                                if (options.AddLinebreaksAfterPagebreaks && tagBytes.Length == 8 &&
-                                    text.Length != j + 1)
+                                byte[] tagBytes = Tag.Write(writer, tagText, options, encoding is UTF8Encoding, msbp);
+                                if (options.AddLinebreaksAfterPagebreaks && text.Length != j + 1)
                                 {
-                                    if ((tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4) ||
-                                        (tagBytes[1] == 0xE && tagBytes[3] == 0x0 && tagBytes[5] == 0x4))
+                                    bool isPageBreakTag = encoding is UTF8Encoding
+                                        ? (tagBytes[0] == 0xE && tagBytes[1] == 0x0 && tagBytes[3] == 0x4) ||
+                                          (tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4)
+                                        : (tagBytes[0] == 0xE && tagBytes[2] == 0x0 && tagBytes[4] == 0x4) ||
+                                          (tagBytes[1] == 0xE && tagBytes[3] == 0x0 && tagBytes[5] == 0x4);
+                                    if (isPageBreakTag)
                                     {
                                         if (text[j + 1] == '\n')
                                         {
