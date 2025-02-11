@@ -21,7 +21,6 @@ foreach (string s in File.ReadAllLines(credPath))
         googleClientSecret = s.Split('=')[1];
 }
 
-
 UserCredential credential = GoogleAuth.Login(googleClientId, googleClientSecret, scopes);
 GoogleSheetsManager sheetsManager = new GoogleSheetsManager(credential);
 

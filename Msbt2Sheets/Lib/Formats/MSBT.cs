@@ -429,6 +429,7 @@ public class MSBT : GeneralFile
                         {
                             AttributeInfo attrInfo = attributeInfos[attrNum];
                             attrDict.Add(attrInfo.Name, attrInfo.Read(reader, reader.Position, startPosition, encoding));
+                            attrNum++;
                         }
                     }
                 }
@@ -718,7 +719,14 @@ public class MSBT : GeneralFile
                             }
                             break;
                         case UnicodeEncoding:
-                            character = encoding.GetChars(BitConverter.GetBytes(reader.ReadInt16()))[0];
+                            if (encoding.BodyName == "utf-16BE")
+                            {
+                                character = encoding.GetChars(BitConverter.GetBytes(reader.ReadInt16()).Reverse().ToArray())[0];
+                            }
+                            else
+                            {
+                                character = encoding.GetChars(BitConverter.GetBytes(reader.ReadInt16()))[0];
+                            }
                             break;
                         default:
                             throw new InvalidDataException("Unknown encoding.");
@@ -912,7 +920,8 @@ public class MSBT : GeneralFile
                 writer.JumpTo(messagePosition);
 
                 string text = messages[i].Text;
-
+                text = text.Replace("\r\n", "\n");
+                
                 for (int j = 0; j < text.Length; j++)
                 {
                     char c = text[j];
@@ -943,10 +952,15 @@ public class MSBT : GeneralFile
                                           (tagBytes[1] == 0xE && tagBytes[3] == 0x0 && tagBytes[5] == 0x4);
                                     if (isPageBreakTag)
                                     {
+                                        //Console.WriteLine(text[j + 1]);
                                         if (text[j + 1] == '\n')
                                         {
                                             j++;
                                         }
+                                        // else
+                                        // {
+                                        //     Console.WriteLine("Alert");
+                                        // }
                                     }
                                 }
                             }
