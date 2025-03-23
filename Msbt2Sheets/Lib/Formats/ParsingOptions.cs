@@ -59,6 +59,8 @@ public class ParsingOptions
     public List<string> OutputLangNames = new();
 
     public bool RecreateSources = false;
+    
+    public bool ChangeItemTagToValueTag = false;
 
     public ParsingOptions()
     {

@@ -238,6 +238,9 @@ public class SheetsToMsbt
                 case "recreateSources":
                     options.RecreateSources = Convert.ToBoolean(option.Value);
                     break;
+                case "changeItemTagToValueTag":
+                    options.ChangeItemTagToValueTag = Convert.ToBoolean(option.Value);
+                    break;
             }
         }
 

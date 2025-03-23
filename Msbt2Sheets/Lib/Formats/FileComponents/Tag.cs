@@ -439,6 +439,11 @@ public class Tag
 
     public static byte[] Write(FileWriter writer, string tag, ParsingOptions options, bool isUtf8, MSBP? msbp = null)
     {
+        //string tagToParse = tag;
+        if (options.ChangeItemTagToValueTag && tag == "<ITEM>")
+        {
+            tag = "<value 0 0>";
+        }
         string unformattedTagPattern = @"<\/?\d+\.\d+(?::[0-9A-F]{2}(-[0-9A-F]{2})*)?>";
         bool unformatted = Regex.IsMatch(tag, unformattedTagPattern);
 
