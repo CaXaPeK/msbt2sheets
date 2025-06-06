@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Google.Apis.Sheets.v4.Data;
 using Msbt2Sheets.Lib.Formats;
 using Msbt2Sheets.Lib.Formats.FileComponents;
@@ -27,7 +28,7 @@ public class MsbtToSheets
         //List<string> sheetLangNames = internalLangNames;
         List<string> sheetLangNames = RenameLanguages(internalLangNames, fileOptions);
 
-        MSBP msbp = ParseMSBP(fileOptions);//MSBP.MK8DXMSBP;
+        MSBP msbp = ParseMSBP(fileOptions);//MSBP.MK8DXMSBP;MSBP.TOTKMSBP;//
         ParsingOptions options = SetParsingOptions(fileOptions, msbp);
 
         options.UnnecessaryPathPrefix = FindUnnecessaryPathPrefix($"{languagesPath}/{internalLangNames[0]}/", "");
@@ -41,9 +42,159 @@ public class MsbtToSheets
         }
     
         Console.WriteLine("Uploading your spreadsheet...");
-        var newSheet = sheetsManager.CreateSpreadsheet(spreadsheet);
+        //var newSheet = sheetsManager.CreateSpreadsheet(spreadsheet);
+        var newSheet = UploadSpreadsheet(spreadsheet, sheetsManager, options);
     
         Console.WriteLine($"Congratulations! Your spreadsheet is ready:\n{newSheet.SpreadsheetUrl}\n\nHave fun!");
+    }
+
+    static Spreadsheet UploadSpreadsheet(Spreadsheet spreadsheet, GoogleSheetsManager sheetsManager, ParsingOptions options)
+    {
+        int totalMessageCount = 0;
+        foreach (var sheet in spreadsheet.Sheets)
+        {
+            totalMessageCount += CountCells(sheet);
+        }
+
+        if (!options.UploadInParts)
+        {
+            Console.WriteLine($"({totalMessageCount} messages)");
+            return sheetsManager.CreateSpreadsheet(spreadsheet);
+        }
+
+        var newSpreadsheet = new Spreadsheet();
+        bool firstSend = true;
+        int messageCounter = 0;
+        int sentSheetsCounter = 0;
+        int totalSheets = spreadsheet.Sheets.Count;
+
+        var buffer = new List<Sheet>();
+
+        // Для оценки времени
+        var stopwatch = new Stopwatch();
+        var totalBatchesSent = 0;
+        double averageBatchTimeMs = 0;
+
+        for (int i = 0; i < totalSheets; i++)
+        {
+            var sheet = spreadsheet.Sheets[i];
+            int sheetMessages = CountCells(sheet);
+
+            bool wouldExceedLimit = (messageCounter + sheetMessages) > options.MessagesPerRequest;
+
+            bool isLastSheet = (i == totalSheets - 1);
+
+            if (wouldExceedLimit && buffer.Count > 0)
+            {
+                // ⏱ Отправляем текущий пакет
+                sentSheetsCounter += buffer.Count;
+                stopwatch.Restart();
+
+                if (firstSend)
+                {
+                    Console.WriteLine($"Creating spreadsheet and filling sheets ({sentSheetsCounter}/{totalSheets}) with {messageCounter} messages...");
+
+                    var initialSpreadsheet = new Spreadsheet
+                    {
+                        Properties = new SpreadsheetProperties
+                        {
+                            Title = spreadsheet.Properties.Title
+                        },
+                        Sheets = new List<Sheet>(buffer)
+                    };
+
+                    newSpreadsheet = sheetsManager.CreateSpreadsheet(initialSpreadsheet);
+                    firstSend = false;
+                }
+                else
+                {
+                    Console.WriteLine($"Creating {buffer.Count} sheets ({sentSheetsCounter}/{totalSheets})...");
+                    sheetsManager.AddSheets(buffer, newSpreadsheet.SpreadsheetId);
+
+                    Console.WriteLine($"Filling these sheets ({messageCounter} messages)...");
+                    sheetsManager.FillSheetsWithFormattingAndWidths(buffer, newSpreadsheet.SpreadsheetId);
+                }
+
+                stopwatch.Stop();
+
+                // ⏱ Обновляем оценку
+                totalBatchesSent++;
+                averageBatchTimeMs = ((averageBatchTimeMs * (totalBatchesSent - 1)) + stopwatch.Elapsed.TotalMilliseconds) / totalBatchesSent;
+
+                int remainingSheets = totalSheets - sentSheetsCounter;
+                int estimatedBatchesLeft = (int)Math.Ceiling((double)remainingSheets / Math.Max(1, buffer.Count));
+                TimeSpan estimatedRemaining = TimeSpan.FromMilliseconds(averageBatchTimeMs * estimatedBatchesLeft);
+                var eta = DateTime.Now + estimatedRemaining;
+
+                Console.WriteLine($"Request done in {stopwatch.Elapsed.TotalSeconds:F1} seconds");
+                Console.WriteLine($"Estimated finishing time: {eta:HH:mm:ss} (about {estimatedRemaining:mm\\:ss}) left");
+
+                buffer.Clear();
+                messageCounter = 0;
+            }
+
+            // Добавляем лист (если он один и превышает лимит — добавится отдельно)
+            buffer.Add(sheet);
+            messageCounter += sheetMessages;
+
+            // Последний лист — отправляем остаток
+            if (isLastSheet && buffer.Count > 0)
+            {
+                sentSheetsCounter += buffer.Count;
+                stopwatch.Restart();
+
+                if (firstSend)
+                {
+                    Console.WriteLine($"Creating spreadsheet and filling sheets ({sentSheetsCounter}/{totalSheets})...");
+
+                    var initialSpreadsheet = new Spreadsheet
+                    {
+                        Properties = new SpreadsheetProperties
+                        {
+                            Title = spreadsheet.Properties.Title
+                        },
+                        Sheets = new List<Sheet>(buffer)
+                    };
+
+                    newSpreadsheet = sheetsManager.CreateSpreadsheet(initialSpreadsheet);
+                    firstSend = false;
+                }
+                else
+                {
+                    Console.WriteLine($"Creating {buffer.Count} sheets ({sentSheetsCounter}/{totalSheets})...");
+                    sheetsManager.AddSheets(buffer, newSpreadsheet.SpreadsheetId);
+
+                    Console.WriteLine($"Filling these sheets ({messageCounter} messages)...");
+                    sheetsManager.FillSheetsWithFormattingAndWidths(buffer, newSpreadsheet.SpreadsheetId);
+                }
+
+                stopwatch.Stop();
+
+                totalBatchesSent++;
+                averageBatchTimeMs = ((averageBatchTimeMs * (totalBatchesSent - 1)) + stopwatch.Elapsed.TotalMilliseconds) / totalBatchesSent;
+
+                buffer.Clear();
+                messageCounter = 0;
+            }
+        }
+    
+        //Console.WriteLine($"Reuploading stats sheet...");
+        //sheetsManager.FillSheetsWithFormattingAndWidths(new List<Sheet>{ spreadsheet.Sheets[0] }, newSpreadsheet.SpreadsheetId);
+
+        return newSpreadsheet;
+    }
+
+    static int CountCells(Sheet sheet)
+    {
+        if (sheet.Data.Count > 0 && sheet.Data[0].RowData.Count > 0)
+        {
+            int columnCount = sheet.Data[0].RowData[0].Values.Count;
+            return sheet.Data[0].RowData.Count * columnCount;
+        }
+        else
+        {
+            return 0;
+        }
     }
     
     static List<string> ReorderLanguages(string langPath, Dictionary<string, string> fileOptions)
@@ -209,7 +360,7 @@ public class MsbtToSheets
     static ParsingOptions SetParsingOptions(Dictionary<string, string> fileOptions, MSBP msbp = null)
     {
         Console.Clear();
-        ParsingOptions options = new();
+        ParsingOptions options = new(fileOptions);
         string answer = "";
         
         Console.Clear();
@@ -468,7 +619,10 @@ public class MsbtToSheets
             {
                 Properties = new SheetProperties()
                 {
-                    Title = msbt.FileName,
+                    //Title = msbt.FileName,
+                    Title = msbt.FileName.Length > 50 
+                        ? "..." + msbt.FileName.Substring(msbt.FileName.Length - 47)
+                        : msbt.FileName,
                     GridProperties = new GridProperties()
                     {
                         RowCount = 1 + msbt.Messages.Count,
@@ -594,6 +748,10 @@ public class MsbtToSheets
                         if (localizedMSBT.Messages.ContainsKey(message.Key))
                         {
                             messageText = localizedMSBT.Messages[message.Key].Text;
+                            if (messageText.StartsWith('+') || messageText.StartsWith('='))
+                            {
+                                messageText = $"'{messageText}";
+                            }
                         }
                         else
                         {
@@ -1405,7 +1563,7 @@ public class MsbtToSheets
                 {
                     RowCount = 1 + baseLang.Count,
                     /*ColumnCount = baseLang[0].HasATO1 ? 6 : 5,*/
-                    ColumnCount = 5,
+                    ColumnCount = 6,
                     FrozenRowCount = 1
                 }
             },
@@ -1421,7 +1579,7 @@ public class MsbtToSheets
         RowData headerRow = new()
         {
             Values = StringListToCellData(
-                new List<string>(){"Filename", "Slot Count", "Version", "Byte Order", "Encoding"},
+                new List<string>(){"Filename", "Slot Count", "Version", "Byte Order", "Encoding", "Labeling"},
                 Constants.HEADER_CELL_FORMAT
             )
         };
@@ -1479,6 +1637,13 @@ public class MsbtToSheets
                         UserEnteredValue = new ExtendedValue()
                         {
                             StringValue = msbt.Header.EncodingType.ToString()
+                        }
+                    },
+                    new CellData()
+                    {
+                        UserEnteredValue = new ExtendedValue()
+                        {
+                            StringValue = msbt.HasNLI1 ? "Numbers" : "Strings"
                         }
                     }
                 }

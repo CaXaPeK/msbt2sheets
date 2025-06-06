@@ -649,6 +649,703 @@ public class MSBP : GeneralFile
         }
     };
 
+    public static MSBP TOTKMSBP
+    {
+        get
+        {
+            MSBP msbp = BaseMSBP;
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Control",
+                Id = 1,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "Delay",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "frames",
+                                Type = ParamType.UInt16
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown1_1",
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown1_2",
+                    },
+                    new TagType()
+                    {
+                        Name = "PlaySound",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "id",
+                                Type = ParamType.UInt16
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Icon",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "type",
+                                Type = ParamType.List,
+                                List = new List<string>()
+                                {
+                                    "LStickUp",
+                                    "LStickDown",
+                                    "LStickLeft",
+                                    "LStickRight",
+                                    "RStickUpDown",
+                                    "RStickRightLeft",
+                                    "DPadUp",
+                                    "DPadDown",
+                                    "DPadLeft",
+                                    "DPadRight",
+                                    "AButton0",
+                                    "AButton1",
+                                    "JumpButton0",
+                                    "YButton",
+                                    "ZLTrigger0",
+                                    "ZLTrigger1",
+                                    "SprintButton0",
+                                    "SprintButton1",
+                                    "SprintButton2",
+                                    "SprintButton3",
+                                    "SprintButton4",
+                                    "RBumper0",
+                                    "LBumper",
+                                    "PlusButton",
+                                    "MinusButton",
+                                    "RightArrow",
+                                    "LeftArrow",
+                                    "UpArrow",
+                                    "DownArrow",
+                                    "UpRightArrow",
+                                    "UpLeftArrow",
+                                    "DownLeftArrow",
+                                    "DownRightArrow",
+                                    "LStick",
+                                    "RStick",
+                                    "LStickLeftRight",
+                                    "NintendoSwitch",
+                                    "JumpButton1",
+                                    "XButton2",
+                                    "BButton",
+                                    "XButton1",
+                                    "PristineWeaponSparkle",
+                                    "RBumper1",
+                                    "DPadUpDown"
+                                },
+                                ListItemIds = Enumerable.Range(0, 44).Select(i => (ushort)i).ToList()
+                            }
+                        }
+                    },
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Value",
+                Id = 2,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "!Unknown2_0",
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_1",
+                    },
+                    new TagType()
+                    {
+                        Name = "Number2",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "CurrentHorseName",
+                    },
+                    new TagType()
+                    {
+                        Name = "SelectedHorseName",
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_5",
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_6",
+                    },
+                    new TagType()
+                    {
+                        Name = "CookingAdjective",
+                    },
+                    new TagType()
+                    {
+                        Name = "CookingEffectCaption",
+                    },
+                    new TagType()
+                    {
+                        Name = "Number9",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_10",
+                    },
+                    new TagType()
+                    {
+                        Name = "Number11",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number12",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_13",
+                    },
+                    new TagType()
+                    {
+                        Name = "Number14",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number15",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number16",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_17",
+                    },
+                    new TagType()
+                    {
+                        Name = "Number18",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number19",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number20",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number21",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Number22",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_23",
+                    },
+                    new TagType()
+                    {
+                        Name = "AttachmentAdjective",
+                    },
+                    new TagType()
+                    {
+                        Name = "EquipmentBaseName",
+                    },
+                    new TagType()
+                    {
+                        Name = "EssenceAdjective",
+                    },
+                    new TagType()
+                    {
+                        Name = "EssenceBaseName",
+                    },
+                    new TagType()
+                    {
+                        Name = "WeaponName",
+                    },
+                    new TagType()
+                    {
+                        Name = "PlayerName",
+                    },
+                    new TagType()
+                    {
+                        Name = "QuestItemName",
+                    },
+                    new TagType()
+                    {
+                        Name = "String31",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "String32",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "String33",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown2_34",
+                    },
+                    new TagType()
+                    {
+                        Name = "YonaDynamicName",
+                    },
+                    new TagType()
+                    {
+                        Name = "String36",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "ref",
+                                Type = ParamType.String
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "RecipeName",
+                    },
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Settings",
+                Id = 3,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "ResetAnim",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "arg",
+                                Type = ParamType.UInt16
+                            }
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "SetItalicFont",
+                    },
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Animation",
+                Id = 4,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "Anim",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "type",
+                                Type = ParamType.String
+                            }
+                        }
+                    }
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Delay",
+                Id = 5,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "Delay8",
+                    },
+                    new TagType()
+                    {
+                        Name = "Delay15",
+                    },
+                    new TagType()
+                    {
+                        Name = "Delay30",
+                    },
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Extend",
+                Id = 7,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "ExtendVerticalSpace",
+                    },
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "ResetFont",
+                Id = 15,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "ResetFontStyle",
+                    },
+                }
+            });
+            msbp.TagGroups.Add(new TagGroup()
+            {
+                Name = "Localize",
+                Id = 201,
+                Tags = new List<TagType>()
+                {
+                    new TagType()
+                    {
+                        Name = "WordInfo",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "gender",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "defArticle",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "indefArticle",
+                                Type = ParamType.UInt8
+                            },
+                            new TagParameter()
+                            {
+                                Name = "isPlural",
+                                Type = ParamType.UInt8
+                            },
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "DefArticle",
+                    },
+                    new TagType()
+                    {
+                        Name = "IndefArticle",
+                    },
+                    new TagType()
+                    {
+                        Name = "UppercaseNextWord",
+                    },
+                    new TagType()
+                    {
+                        Name = "LowercaseNextWord",
+                    },
+                    new TagType()
+                    {
+                        Name = "Gender",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "m",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "f",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "n",
+                                Type = ParamType.String
+                            },
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "PluralCase",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "one",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "some",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "many",
+                                Type = ParamType.String
+                            },
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "!Unknown201_7",
+                    },
+                    new TagType()
+                    {
+                        Name = "Gender8",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "arg1",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "arg2",
+                                Type = ParamType.String
+                            },
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "CaseNextWord",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "arg1",
+                                Type = ParamType.List,
+                                List = new List<string>()
+                                {
+                                    "едИм",
+                                    "едРо",
+                                    "едДа",
+                                    "едВи",
+                                    "едТв",
+                                    "едПр",
+                                    "мнИм",
+                                    "мнРо",
+                                    "мнДа",
+                                    "мнВи",
+                                    "мнТв",
+                                    "мнПр",
+                                },
+                                ListItemIds = Enumerable.Range(0, 12).Select(i => (ushort)i).ToList()
+                            },
+                        }
+                    },
+                    new TagType()
+                    {
+                        Name = "Cases",
+                        Parameters = new List<TagParameter>()
+                        {
+                            new TagParameter()
+                            {
+                                Name = "едИм",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "едРо",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "едДа",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "едВи",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "едТв",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "едПр",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "мнИм",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "мнРо",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "мнДа",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "мнВи",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "мнТв",
+                                Type = ParamType.String
+                            },
+                            new TagParameter()
+                            {
+                                Name = "мнПр",
+                                Type = ParamType.String
+                            },
+                        }
+                    },
+                }
+            });
+
+            return msbp;
+        }
+    }
+
     public static MSBP MK8DXMSBP
     {
         get

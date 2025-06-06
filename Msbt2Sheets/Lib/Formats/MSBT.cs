@@ -79,7 +79,7 @@ public class MSBT : GeneralFile
                     tsy1 = new(reader, sectionSize);
                     break;
                 case "TXT2":
-                    txt2 = new(reader, HasATR1, atr1, HasTSY1, tsy1, options, lbl1, fileName, Header.Encoding, msbp);
+                    txt2 = new(reader, HasATR1, atr1, HasTSY1, tsy1, options, lbl1, HasNLI1, nli1, fileName, Header.Encoding, msbp);
                     break;
                 default:
                     throw new DataException($"Unknown section magic!");
@@ -100,9 +100,9 @@ public class MSBT : GeneralFile
         }
         else if (HasNLI1)
         {
-            foreach (var pair in nli1.Indices)
+            foreach (var nli1Entry in nli1.Indices)
             {
-                Messages.Add(pair.Key.ToString(), txt2.Messages[(int)pair.Value]);
+                Messages.Add(nli1Entry.Value.ToString(), txt2.Messages[(int)nli1Entry.Key]);
             }
         }
 
@@ -303,8 +303,8 @@ public class MSBT : GeneralFile
             Indices = new();
             for (uint i = 0; i < entryCount; i++)
             {
-                uint entryId = reader.ReadUInt32();
                 uint messageIndex = reader.ReadUInt32();
+                uint entryId = reader.ReadUInt32();
                 Indices.Add(entryId, messageIndex);
             }
         }
@@ -652,7 +652,7 @@ public class MSBT : GeneralFile
 
         public TXT2() {}
 
-        public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, LBL1 lbl1, string fileName, Encoding encoding, MSBP? msbp = null)
+        public TXT2(FileReader reader, bool hasATR1, ATR1 atr1, bool hasTSY1, TSY1 tsy1, ParsingOptions options, LBL1 lbl1, bool hasNLI1, NLI1 nli1, string fileName, Encoding encoding, MSBP? msbp = null)
         {
             Messages = new();
             //encoding = Encoding.Unicode;
@@ -731,7 +731,7 @@ public class MSBT : GeneralFile
                         default:
                             throw new InvalidDataException("Unknown encoding.");
                     }
-                    string tagOrigin = $"{fileName}@{lbl1.Labels[Messages.Count]}";
+                    string tagOrigin = hasNLI1 ? $"{fileName}@{nli1.Indices[(uint)Messages.Count]}" : $"{fileName}@{lbl1.Labels[Messages.Count]}";
                     List<byte> buffer = new List<byte>();
                     switch (character)
                     {

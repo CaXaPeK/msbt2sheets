@@ -23,6 +23,10 @@ public class Tag
     public string Stringify(ParsingOptions options, string tagOrigin, Encoding encoding, MSBP? msbp = null, bool isBaseMsbp = false, bool parseCd = false)
     {
         //Console.WriteLine($"<{Group}.{Type}:{BitConverter.ToString(RawParameters)}>");
+        // if (Group == 201)
+        // {
+        //     Console.WriteLine("hey");
+        // }
         if (msbp == null)
         {
             if (Group == 0)
@@ -51,7 +55,7 @@ public class Tag
             try
             {
                 TagGroup? group = msbp.TagGroups.FirstOrDefault(x => x.Id == Group);
-                TagType type = msbp.TagGroups[Group].Tags[Type];
+                TagType type = group.Tags[Type];
 
                 bool shortenTags = options.ShortenTags;
                 if (shortenTags && !isTagNameFirst(type.Name, msbp))
@@ -188,7 +192,7 @@ public class Tag
                 }
                 return $"<{group.Name}.{type.Name}{RawParametersToString(type, msbp, encoding, options.ShortenTags, parseCd)}>";
             }
-            catch
+            catch (Exception e)
             {
                 if (parseCd == false)
                 {

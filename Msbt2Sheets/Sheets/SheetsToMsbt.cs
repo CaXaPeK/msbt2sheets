@@ -12,8 +12,7 @@ public class SheetsToMsbt
 {
     public static void Create(GoogleSheetsManager sheetsManager, Dictionary<string, string> fileOptions)
     {
-        ParsingOptions options = new();
-        SetOptionsFromFile(options, fileOptions);
+        ParsingOptions options = new(fileOptions);
         
         Console.Clear();
         ConsoleUtils.WriteLineColored("Enter your spreadsheet's ID.\n(It's in the link: https://docs.google.com/spreadsheets/d/|1pRFVKt4fNnWHKf8kIpSk0qmu7u-EdHEUGwkTP9Kzq3A|/edit)", ConsoleColor.Cyan);
@@ -151,102 +150,6 @@ public class SheetsToMsbt
                     options.InternalLangNames[options.InternalLangNames.FindIndex(x => x == entry.Key)] = entry.Value;
                 }
             }
-        }
-    }
-
-    static void SetOptionsFromFile(ParsingOptions options, Dictionary<string, string> fileOptions)
-    {
-        foreach (var option in fileOptions)
-        {
-            switch (option.Key)
-            {
-                case "spreadsheetId":
-                    options.SpreadsheetId = option.Value;
-                    break;
-                case "outputPath":
-                    options.OutputPath = option.Value;
-                    break;
-                case "noStatsSheet":
-                    options.NoStatsSheet = Convert.ToBoolean(option.Value);
-                    break;
-                case "noSettingsSheet":
-                    options.NoSettingsSheet = Convert.ToBoolean(option.Value);
-                    break;
-                case "noInternalDataSheet":
-                    options.NoInternalDataSheet = Convert.ToBoolean(option.Value);
-                    break;
-                case "addLinebreaksAfterPagebreaks":
-                    options.AddLinebreaksAfterPagebreaks = Convert.ToBoolean(option.Value);
-                    break;
-                case "colorIdentification":
-                    options.ColorIdentification = option.Value;
-                    break;
-                case "skipLangIfNotTranslated":
-                    options.SkipLangIfNotTranslated = Convert.ToBoolean(option.Value);
-                    break;
-                case "extendedHeader":
-                    options.ExtendedHeader = Convert.ToBoolean(option.Value);
-                    break;
-                case "sheetNames":
-                    options.SheetNames = option.Value.Split('|').ToList();
-                    break;
-                case "customFileNames":
-                    options.CustomFileNames = option.Value.Split('|').ToList();
-                    break;
-                case "globalVersion":
-                    options.GlobalVersion = Convert.ToByte(option.Value);
-                    break;
-                case "globalEndianness":
-                    options.GlobalEndianness = option.Value == "Little Endian" ? Endianness.LittleEndian : Endianness.BigEndian;
-                    break;
-                case "globalEncoding":
-                    Enum.TryParse(option.Value, out EncodingType encoding);
-                    options.GlobalEncodingType = encoding;
-                    break;
-                case "globalAto1":
-                    string[] ato1sStr = option.Value.Split(", ");
-                    foreach (var ato1Str in ato1sStr)
-                    {
-                        options.GlobalAto1.Add(Convert.ToInt32(ato1Str));
-                    }
-                    break;
-                case "slotCounts":
-                    string[] slotCountsStr = option.Value.Split('|');
-                    foreach (var slotCountStr in slotCountsStr)
-                    {
-                        options.SlotCounts.Add(Convert.ToUInt32(slotCountStr));
-                    }
-                    break;
-                case "uiLangs":
-                    options.UiLangNames = option.Value.Split('|').ToList();
-                    break;
-                case "outputLangs":
-                    options.OutputLangNames = option.Value.Split('|').ToList();
-                    break;
-                case "noTranslationSymbol":
-                    options.NoTranslationSymbol = option.Value;
-                    break;
-                case "noMessageSymbol":
-                    options.NoMessageSymbol = option.Value;
-                    break;
-                case "noFileSymbol":
-                    options.NoFileSymbol = option.Value;
-                    break;
-                case "mainLangColumnId":
-                    options.MainLangColumnId = Convert.ToInt32(option.Value);
-                    break;
-                case "recreateSources":
-                    options.RecreateSources = Convert.ToBoolean(option.Value);
-                    break;
-                case "changeItemTagToValueTag":
-                    options.ChangeItemTagToValueTag = Convert.ToBoolean(option.Value);
-                    break;
-            }
-        }
-
-        if (options.UiLangNames.Count > 0 && options.OutputLangNames.Count == 0)
-        {
-            options.OutputLangNames = options.UiLangNames;
         }
     }
 
